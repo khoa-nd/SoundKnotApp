@@ -1,0 +1,281 @@
+/* ─────────────────────────────────────────────────────────────
+   Gordian Knot — type + color tokens
+   Cool technical, near-black, single amber accent
+   ───────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap');
+
+:root {
+  /* Paper / ink — light mode */
+  --gk-paper: #F4F3EE;
+  --gk-paper-2: #ECEAE2;
+  --gk-ink: #0B0C0E;
+  --gk-ink-2: #232528;
+  --gk-ink-3: #5B5E64;
+  --gk-ink-4: #8B8E94;
+  --gk-hair: rgba(11, 12, 14, 0.10);
+  --gk-hair-2: rgba(11, 12, 14, 0.06);
+
+  /* Accent — precise amber */
+  --gk-accent: oklch(0.72 0.18 55);
+  --gk-accent-soft: oklch(0.72 0.18 55 / 0.14);
+  --gk-accent-ink: oklch(0.35 0.14 55);
+
+  /* Signals (kept grayscale, accent = amber only) */
+  --gk-positive: oklch(0.55 0.12 155);
+  --gk-negative: oklch(0.58 0.18 25);
+
+  --gk-sans: 'Inter Tight', -apple-system, system-ui, sans-serif;
+  --gk-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --gk-serif: 'Instrument Serif', 'Times New Roman', serif;
+}
+
+.gk-dark {
+  --gk-paper: #0B0C0E;
+  --gk-paper-2: #16181C;
+  --gk-ink: #F4F3EE;
+  --gk-ink-2: #D6D4CC;
+  --gk-ink-3: #8F9298;
+  --gk-ink-4: #5B5E64;
+  --gk-hair: rgba(244, 243, 238, 0.12);
+  --gk-hair-2: rgba(244, 243, 238, 0.06);
+  --gk-accent-soft: oklch(0.72 0.18 55 / 0.18);
+  --gk-accent-ink: oklch(0.85 0.15 55);
+}
+
+/* ── Base inside a device frame ─────────────────────────────── */
+.gk-app {
+  font-family: var(--gk-sans);
+  color: var(--gk-ink);
+  background: var(--gk-paper);
+  font-feature-settings: 'ss01', 'cv11';
+  letter-spacing: -0.005em;
+  height: 100%;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  -webkit-font-smoothing: antialiased;
+}
+.gk-mono { font-family: var(--gk-mono); letter-spacing: 0; }
+.gk-serif { font-family: var(--gk-serif); letter-spacing: -0.01em; }
+.gk-up { text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* ── Hairlines and chrome ───────────────────────────────────── */
+.gk-hair { border-top: 1px solid var(--gk-hair); }
+.gk-hair-b { border-bottom: 1px solid var(--gk-hair); }
+
+/* ── Scrollbar hide for scrollable panels inside frames ─────── */
+.gk-scroll { overflow-y: auto; scrollbar-width: none; }
+.gk-scroll::-webkit-scrollbar { display: none; }
+
+/* ── Buttons ────────────────────────────────────────────────── */
+.gk-btn {
+  font-family: var(--gk-sans);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  border: none; outline: none;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  transition: transform 0.08s ease, background 0.15s ease, color 0.15s ease;
+}
+.gk-btn:active { transform: scale(0.98); }
+.gk-btn-primary {
+  background: var(--gk-ink);
+  color: var(--gk-paper);
+  padding: 14px 18px;
+  border-radius: 10px;
+  width: 100%;
+}
+.gk-btn-ghost {
+  background: transparent;
+  color: var(--gk-ink);
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--gk-hair);
+}
+.gk-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-radius: 6px;
+  font-family: var(--gk-mono);
+  font-size: 10.5px; letter-spacing: 0.02em;
+  background: var(--gk-paper-2);
+  color: var(--gk-ink-2);
+  border: 1px solid var(--gk-hair-2);
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.gk-chip > * { flex-shrink: 0; }
+
+/* ── Inputs ─────────────────────────────────────────────────── */
+.gk-input {
+  width: 100%;
+  background: var(--gk-paper-2);
+  border: 1px solid var(--gk-hair);
+  border-radius: 10px;
+  padding: 14px 14px;
+  font-family: var(--gk-mono);
+  font-size: 13px;
+  color: var(--gk-ink);
+  outline: none;
+  letter-spacing: 0;
+}
+.gk-input:focus { border-color: var(--gk-ink); background: var(--gk-paper); }
+.gk-input::placeholder { color: var(--gk-ink-4); }
+
+/* ── Number markers (1/4, etc) ──────────────────────────────── */
+.gk-marker {
+  font-family: var(--gk-mono);
+  font-size: 10px;
+  color: var(--gk-ink-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ── Knot motif container ───────────────────────────────────── */
+.gk-knot-wrap { position: relative; display: flex; align-items: center; justify-content: center; }
+
+/* ── Transcript text states ─────────────────────────────────── */
+.gk-word { transition: color 0.2s ease, background 0.2s ease; }
+.gk-word-active {
+  background: var(--gk-accent-soft);
+  color: var(--gk-ink);
+  border-radius: 3px;
+  padding: 0 2px;
+  margin: 0 -2px;
+}
+.gk-word-muted { color: var(--gk-ink-4); }
+.gk-word-hidden {
+  color: transparent;
+  background: linear-gradient(180deg, var(--gk-ink-3) 0%, var(--gk-ink-3) 100%);
+  background-size: 100% 2px;
+  background-position: 0 90%;
+  background-repeat: no-repeat;
+  border-radius: 2px;
+}
+
+/* ── Waveform bars ──────────────────────────────────────────── */
+.gk-wave-bar {
+  background: var(--gk-ink-2);
+  border-radius: 1px;
+  width: 2px;
+  transition: background 0.1s ease;
+}
+.gk-wave-bar.played { background: var(--gk-ink); }
+.gk-wave-bar.future { background: var(--gk-ink-4); opacity: 0.35; }
+
+/* ── Tabs (bottom nav) ──────────────────────────────────────── */
+.gk-tab {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 8px 0 4px;
+  color: var(--gk-ink-4);
+  font-family: var(--gk-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none; background: transparent;
+}
+.gk-tab.active { color: var(--gk-ink); }
+
+/* ── Dictation diff ─────────────────────────────────────────── */
+.gk-diff-correct { color: var(--gk-ink); }
+.gk-diff-missed {
+  color: var(--gk-negative);
+  text-decoration: underline;
+  text-decoration-style: wavy;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.gk-diff-extra {
+  color: var(--gk-ink-4);
+  text-decoration: line-through;
+}
+.gk-diff-blank {
+  display: inline-block;
+  min-width: 40px;
+  border-bottom: 1.5px dashed var(--gk-ink-4);
+  height: 1em;
+}
+
+/* ── Progress bar thin ──────────────────────────────────────── */
+.gk-progress {
+  height: 2px;
+  background: var(--gk-hair);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.gk-progress-fill {
+  height: 100%;
+  background: var(--gk-ink);
+  transition: width 0.25s ease;
+}
+
+/* ── Streak squares ─────────────────────────────────────────── */
+.gk-streak-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--gk-hair);
+  position: relative;
+}
+.gk-streak-cell.done {
+  background: var(--gk-ink);
+}
+.gk-streak-cell.partial {
+  background: var(--gk-ink-4);
+}
+.gk-streak-cell.today {
+  background: var(--gk-accent);
+}
+
+/* ── Tweaks panel ───────────────────────────────────────────── */
+.gk-tweaks {
+  position: fixed;
+  bottom: 20px; right: 20px;
+  width: 260px;
+  background: #0B0C0E;
+  color: #F4F3EE;
+  border-radius: 12px;
+  padding: 14px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 12px;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06);
+  z-index: 9999;
+}
+.gk-tweaks h4 {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+  color: rgba(244, 243, 238, 0.6);
+}
+.gk-tweaks label {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0;
+  font-size: 12px;
+}
+.gk-tweaks select, .gk-tweaks button {
+  background: #16181C;
+  color: #F4F3EE;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: 'Inter Tight', system-ui, sans-serif;
+  font-size: 12px;
+  cursor: pointer;
+}
+.gk-tweaks .seg { display: flex; gap: 4px; }
+.gk-tweaks .seg button { padding: 4px 8px; }
+.gk-tweaks .seg button.on { background: var(--gk-accent); color: #0B0C0E; border-color: transparent; }
+
+@keyframes gk-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}

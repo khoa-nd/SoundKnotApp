@@ -1,0 +1,330 @@
+/* saddle.css — additions for the Saddle app */
+
+.sd-app {
+  height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--gk-paper);
+  color: var(--gk-ink);
+  font-family: var(--gk-sans);
+  letter-spacing: -0.005em;
+  position: relative;
+  overflow: hidden;
+}
+
+.sd-app * { box-sizing: border-box; }
+
+/* Numerals — for big hour displays */
+.sd-num {
+  font-family: var(--gk-mono);
+  font-feature-settings: 'tnum' 1, 'ss01' 1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+/* Heatmap cells — time in saddle */
+.sd-cell {
+  width: 100%; aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--gk-hair);
+  transition: opacity 0.2s ease;
+}
+.sd-cell-l1 { background: rgba(217, 119, 87, 0.18); }
+.sd-cell-l2 { background: rgba(217, 119, 87, 0.36); }
+.sd-cell-l3 { background: rgba(217, 119, 87, 0.6); }
+.sd-cell-l4 { background: rgba(217, 119, 87, 0.85); }
+.sd-cell-l5 { background: var(--gk-accent); }
+
+/* Tag chip — square corners, mono */
+.sd-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 7px;
+  font-family: var(--gk-mono);
+  font-size: 10px; letter-spacing: 0.03em;
+  text-transform: lowercase;
+  background: transparent;
+  border: 1px solid var(--gk-hair);
+  color: var(--gk-ink-2);
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sd-tag.on {
+  background: var(--gk-ink); color: var(--gk-paper); border-color: var(--gk-ink);
+}
+
+/* Speaker portrait — monochrome halftone (no AI pic, just a system mark) */
+.sd-portrait {
+  width: 56px; height: 56px;
+  border-radius: 4px;
+  background:
+    radial-gradient(circle at 30% 30%, var(--gk-ink) 0 1.2px, transparent 1.5px),
+    radial-gradient(circle at 70% 50%, var(--gk-ink) 0 1.2px, transparent 1.5px),
+    radial-gradient(circle at 40% 70%, var(--gk-ink) 0 1.2px, transparent 1.5px),
+    var(--gk-paper-2);
+  background-size: 8px 8px, 8px 8px, 8px 8px, 100% 100%;
+  border: 1px solid var(--gk-hair);
+  flex-shrink: 0;
+  position: relative;
+  overflow: hidden;
+}
+.sd-portrait::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.25));
+}
+
+/* Hands-free indicator */
+.sd-handsfree {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  font-family: var(--gk-mono);
+  font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase;
+  border-radius: 3px;
+  background: var(--gk-ink);
+  color: var(--gk-paper);
+  white-space: nowrap;
+}
+.sd-handsfree-dot {
+  width: 6px; height: 6px; border-radius: 3px;
+  background: var(--gk-accent);
+  animation: gk-pulse 1.6s ease-in-out infinite;
+}
+
+/* Nav bar */
+.sd-tabbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--gk-hair);
+  background: var(--gk-paper);
+  flex-shrink: 0;
+}
+.sd-tab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  padding: 8px 4px 6px;
+  background: transparent; border: none;
+  color: var(--gk-ink-4);
+  font-family: var(--gk-mono);
+  font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer;
+}
+.sd-tab.on { color: var(--gk-ink); }
+
+/* Section header */
+.sd-section-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.sd-section-title {
+  font-size: 17px; font-weight: 600; letter-spacing: -0.01em;
+}
+.sd-section-why {
+  font-family: var(--gk-mono);
+  font-size: 10px; letter-spacing: 0.04em;
+  color: var(--gk-ink-4);
+  text-transform: uppercase;
+}
+
+/* Card list item */
+.sd-listen-card {
+  display: flex; gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--gk-hair-2);
+  cursor: pointer;
+}
+.sd-listen-card:first-child { border-top: none; }
+
+/* Big-numeral display */
+.sd-bignum {
+  display: flex; align-items: baseline; gap: 6px;
+}
+.sd-bignum-val {
+  font-family: var(--gk-mono);
+  font-feature-settings: 'tnum' 1;
+  font-size: 56px; line-height: 1; font-weight: 500;
+  letter-spacing: -0.04em;
+}
+.sd-bignum-unit {
+  font-family: var(--gk-mono);
+  font-size: 11px; color: var(--gk-ink-4);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+/* Saddle ring — progress around the time */
+.sd-ring {
+  --pct: 0.5;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  background: conic-gradient(var(--gk-accent) calc(var(--pct) * 100%), var(--gk-hair) 0);
+  display: flex; align-items: center; justify-content: center;
+}
+.sd-ring-inner {
+  width: 48px; height: 48px; border-radius: 50%;
+  background: var(--gk-paper);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Wave — full horizontal bar of bars */
+.sd-wave {
+  display: flex; align-items: center; gap: 2px;
+  height: 32px;
+}
+.sd-wave-bar {
+  flex: 1;
+  background: var(--gk-ink);
+  border-radius: 1px;
+  min-width: 2px;
+}
+.sd-wave-bar.played {
+  background: var(--gk-ink);
+}
+.sd-wave-bar.upcoming {
+  background: var(--gk-hair);
+}
+
+/* AI bubble */
+.sd-bubble {
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 14px; line-height: 1.5;
+  max-width: 86%;
+}
+.sd-bubble.me {
+  background: var(--gk-ink);
+  color: var(--gk-paper);
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+.sd-bubble.ai {
+  background: var(--gk-paper-2);
+  color: var(--gk-ink-2);
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+  border: 1px solid var(--gk-hair);
+}
+
+/* Sticky now-playing strip on home/library */
+.sd-mini-player {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  background: var(--gk-ink);
+  color: var(--gk-paper);
+  border-radius: 10px;
+  margin: 0 16px 10px;
+  cursor: pointer;
+}
+.sd-mini-player .meta {
+  flex: 1; min-width: 0;
+}
+.sd-mini-player .meta .title {
+  font-size: 13px; font-weight: 500;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sd-mini-player .meta .sub {
+  font-family: var(--gk-mono);
+  font-size: 9.5px; letter-spacing: 0.05em;
+  color: rgba(244,243,238,0.65);
+  text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sd-mini-player .play {
+  width: 36px; height: 36px; border-radius: 18px;
+  background: var(--gk-paper); color: var(--gk-ink);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Round icon button */
+.sd-iconbtn {
+  width: 44px; height: 44px; border-radius: 22px;
+  background: var(--gk-paper-2);
+  border: 1px solid var(--gk-hair);
+  color: var(--gk-ink);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.sd-iconbtn.dark {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+  color: var(--gk-paper);
+}
+.sd-iconbtn.primary {
+  background: var(--gk-ink); color: var(--gk-paper); border-color: var(--gk-ink);
+}
+
+/* Big play button (Now Playing) */
+.sd-bigplay {
+  width: 76px; height: 76px; border-radius: 38px;
+  background: var(--gk-ink); color: var(--gk-paper);
+  border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* Now playing — dark surface */
+.sd-now {
+  background: #14161a;
+  color: var(--gk-paper);
+}
+.sd-now .sd-marker { color: rgba(244,243,238,0.55); }
+.sd-now .sd-hair { background: rgba(255,255,255,0.08); }
+
+.sd-marker {
+  font-family: var(--gk-mono);
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--gk-ink-3);
+}
+
+/* Halftone art for now-playing background — vinyl-like */
+.sd-cover {
+  aspect-ratio: 1;
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 28%, rgba(255,255,255,0.04) 28.5%, transparent 29%),
+    radial-gradient(circle at 50% 50%, transparent 38%, rgba(255,255,255,0.04) 38.5%, transparent 39%),
+    radial-gradient(circle at 50% 50%, transparent 48%, rgba(255,255,255,0.04) 48.5%, transparent 49%),
+    radial-gradient(circle at 50% 50%, transparent 58%, rgba(255,255,255,0.04) 58.5%, transparent 59%),
+    radial-gradient(circle at 30% 30%, rgba(217,119,87,0.18), transparent 60%),
+    #1a1d22;
+  position: relative;
+  overflow: hidden;
+}
+.sd-cover::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at 50% 50%, var(--gk-accent) 0 8px, transparent 9px);
+}
+
+/* Phrase card for drilling */
+.sd-phrase {
+  padding: 18px;
+  border: 1px solid var(--gk-hair);
+  border-radius: 12px;
+  background: var(--gk-paper-2);
+}
+
+/* Progress dots for drill reps */
+.sd-rep-row {
+  display: flex; gap: 6px; align-items: center;
+}
+.sd-rep {
+  width: 12px; height: 12px; border-radius: 6px;
+  border: 1.5px solid var(--gk-ink);
+}
+.sd-rep.done { background: var(--gk-ink); }
+
+/* Floating ask-AI pill above transcript */
+.sd-ask-pill {
+  position: absolute; bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  border-radius: 24px;
+  background: var(--gk-accent);
+  color: #1a1d22;
+  font-family: var(--gk-mono);
+  font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+  font-weight: 500;
+  border: none; cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+}
