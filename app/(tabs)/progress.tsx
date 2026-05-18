@@ -144,7 +144,7 @@ function StatCard({
         style={[
           Typography.marker,
           {
-            color: accent ? 'rgba(244,243,238,0.6)' : colors.ink4,
+            color: accent ? colors.inkInverse : colors.ink4,
             marginBottom: Spacing.sm,
           },
         ]}
@@ -153,7 +153,7 @@ function StatCard({
       </Text>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: Spacing.xs }}>
         <Text style={[Typography.monoStat, { color: accent ? colors.paper : colors.ink }]}>{value}</Text>
-        <Text style={[Typography.marker, { color: accent ? 'rgba(244,243,238,0.6)' : colors.ink3 }]}>
+        <Text style={[Typography.marker, { color: accent ? colors.inkInverse : colors.ink3 }]}>
           {unit}
         </Text>
       </View>

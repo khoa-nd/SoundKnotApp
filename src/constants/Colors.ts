@@ -1,22 +1,26 @@
-// ── Sound Knot V2 — Amber-on-paper color system
-// Cool technical, near-black, single amber accent
+// ── Sound Knot V2 — Saddle color system (from design PDF)
+// Warm paper light mode, dark charcoal dark mode, single orange accent
 // Supports light + dark mode
 
 export const LightColors = {
-  // Paper / Ink
-  paper: '#F4F3EE',
+  // Paper / Ink — warm off-white, near-black charcoal text
+  paper: '#F4F3EF',
   paper2: '#ECEAE2',
-  ink: '#0B0C0E',
-  ink2: '#232528',
-  ink3: '#5B5E64',
-  ink4: '#8B8E94',
-  hair: 'rgba(11, 12, 14, 0.10)',
-  hair2: 'rgba(11, 12, 14, 0.06)',
+  ink: '#2A2522',
+  ink2: '#4A4440',
+  ink3: '#7A756F',
+  ink4: '#9E9990',
+  hair: 'rgba(42, 37, 34, 0.10)',
+  hair2: 'rgba(42, 37, 34, 0.06)',
 
-  // Accent — precise amber
-  accent: '#D4941A',
-  accentSoft: 'rgba(212, 148, 26, 0.14)',
-  accentInk: '#6B3A0A',
+  // Accent — warm orange (from design: ASK AI button, calendar heatmap, progress ring)
+  accent: '#E8913A',
+  accentSoft: 'rgba(232, 145, 58, 0.14)',
+  accentInk: '#7A3D0A',
+
+  // Inverted text — for light text on dark/accent backgrounds
+  inkInverse: 'rgba(244, 243, 239, 0.60)',
+  inkInverse2: 'rgba(244, 243, 239, 0.70)',
 
   // Signals
   positive: '#00897B',
@@ -24,21 +28,25 @@ export const LightColors = {
 } as const;
 
 export const DarkColors = {
-  paper: '#0B0C0E',
-  paper2: '#16181C',
-  ink: '#F4F3EE',
-  ink2: '#D6D4CC',
-  ink3: '#8F9298',
-  ink4: '#5B5E64',
-  hair: 'rgba(244, 243, 238, 0.12)',
-  hair2: 'rgba(244, 243, 238, 0.06)',
+  paper: '#1C1A17',
+  paper2: '#262320',
+  ink: '#F4F3EF',
+  ink2: '#D6D3CC',
+  ink3: '#A5A09A',
+  ink4: '#7A7570',
+  hair: 'rgba(244, 243, 239, 0.12)',
+  hair2: 'rgba(244, 243, 239, 0.07)',
 
-  accent: '#E8A835',
-  accentSoft: 'rgba(232, 168, 53, 0.18)',
-  accentInk: '#E8C860',
+  accent: '#E8913A',
+  accentSoft: 'rgba(232, 145, 58, 0.20)',
+  accentInk: '#F5C88A',
 
-  positive: '#4DB6AC',
-  negative: '#EF5350',
+  // Inverted text — for light text on dark/accent backgrounds
+  inkInverse: 'rgba(244, 243, 239, 0.60)',
+  inkInverse2: 'rgba(244, 243, 239, 0.70)',
+
+  positive: '#66BBAA',
+  negative: '#EF6C6C',
 } as const;
 
 export type ColorTokens = typeof LightColors;

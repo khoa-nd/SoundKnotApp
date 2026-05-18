@@ -192,7 +192,7 @@ export default function DictationScreen() {
                         style={{
                           color:
                             d.status === 'correct'
-                              ? colors.ink
+                              ? colors.positive
                               : d.status === 'missed'
                                 ? colors.negative
                                 : colors.ink4,
@@ -222,11 +222,11 @@ export default function DictationScreen() {
 
         {checked && (
           <View style={[styles.averageCard, { backgroundColor: colors.ink }]}>
-            <Text style={[Typography.marker, { color: 'rgba(244,243,238,0.6)' }]}>Session average</Text>
+            <Text style={[Typography.marker, { color: colors.inkInverse }]}>Session average</Text>
             <Text style={[Typography.monoDisplay, { color: colors.paper, marginTop: Spacing.xs }]}>
               {avgAccuracy}% match
             </Text>
-            <Text style={[Typography.bodySmall, { color: 'rgba(244,243,238,0.7)', marginTop: Spacing.xs }]}>
+            <Text style={[Typography.bodySmall, { color: colors.inkInverse2, marginTop: Spacing.xs }]}>
               across {recalls.length} recall{String(recalls.length) !== '1' ? 's' : ''}
             </Text>
           </View>

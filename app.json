@@ -6,12 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "soundknot",
-"userInterfaceStyle": "automatic",
+"userInterfaceStyle": "light",
   "newArchEnabled": true,
   "splash": {
     "image": "./assets/images/splash-icon.png",
     "resizeMode": "contain",
-    "backgroundColor": "#F4F3EE"
+    "backgroundColor": "#F4F3EF"
   },
   "ios": {
     "supportsTablet": true,
@@ -23,7 +23,7 @@
   "android": {
     "adaptiveIcon": {
       "foregroundImage": "./assets/images/adaptive-icon.png",
-      "backgroundColor": "#F4F3EE"
+      "backgroundColor": "#F4F3EF"
     },
       "edgeToEdgeEnabled": true,
       "permissions": ["RECORD_AUDIO"]

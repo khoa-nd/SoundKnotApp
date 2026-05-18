@@ -1,6 +1,6 @@
 // ── Sound Knot V2 — Listen Screen
-// YouTube embed + scrolling transcript + Recall / Show-Hide toggle
-import React, { useState } from 'react';
+// YouTube player (native controls) + interactive transcript with live highlighting
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,94 +8,240 @@ import {
   TouchableOpacity,
   StyleSheet,
   useWindowDimensions,
+  ActivityIndicator,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import YoutubePlayer from 'react-native-youtube-iframe';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
+import { fetchTranscript, formatTimestamp, findCurrentLineIndex, type TranscriptLine } from '../src/services/transcript';
 
-// Mock transcript data
-const SEGMENT = {
-  lines: [
-    { t: '0:12', text: 'For sixty years we wrote software that ran on CPUs and the architecture of that software was shaped by the architecture of the processor.' },
-    { t: '0:24', text: 'We built abstractions that made sense for sequential, deterministic computation.' },
-    { t: '0:32', text: 'Now we have to relearn how to compute starting from the silicon up.' },
-    { t: '0:40', text: 'The fundamental assumptions we made about how programs execute no longer hold.' },
-    { t: '0:50', text: 'We are moving from a world of precise, repeatable calculations to one of probabilistic inference.' },
-    { t: '1:02', text: 'This shift is as profound as the transition from vacuum tubes to transistors.' },
-    { t: '1:12', text: 'And it requires us to rethink everything we thought we knew about software engineering.' },
-    { t: '1:22', text: 'The GPU is not just a faster CPU — it is a fundamentally different model of computation.' },
-    { t: '1:34', text: 'When you write code for a GPU, you are thinking in terms of thousands of parallel threads.' },
-  ],
-};
+// ── Component ──
 
 export default function ListenScreen() {
   const colors = useTheme();
   const { width } = useWindowDimensions();
   const { videoId } = useLocalSearchParams<{ videoId?: string }>();
+  const playerRef = useRef<any>(null);
+  const scrollRef = useRef<ScrollView>(null);
+
+  // Player state
+  const [playing, setPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  // Transcript state
+  const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
+  const [transcriptError, setTranscriptError] = useState<string | null>(null);
   const [transcriptHidden, setTranscriptHidden] = useState(false);
-  const recallCount = 0;
+  const [currentLineIdx, setCurrentLineIdx] = useState(-1);
+
+  // Auto-scroll state — track measured Y positions and user interaction
+  const lineYPositions = useRef<Record<number, number>>({});
+  const scrollViewHeight = useRef(0);
+  const userIsScrolling = useRef(false);
+  const userScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAutoScrollIdx = useRef(-1);
 
   const vid = videoId ?? 'dQw4w9WgcQ';
-
   const videoHeight = ((width - Spacing.screen * 2) * 9) / 16;
+
+  // ── Fetch transcript on mount ──
+
+  useEffect(() => {
+    let cancelled = false;
+    setTranscriptLoading(true);
+    setTranscriptError(null);
+
+    fetchTranscript(vid)
+      .then((data) => {
+        if (!cancelled) {
+          setTranscript(data.lines);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setTranscriptError(err.message);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setTranscriptLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [vid]);
+
+  // ── Poll current time for transcript highlighting ──
+
+  useEffect(() => {
+    if (!ready || !playing) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const t = await playerRef.current?.getCurrentTime();
+        if (typeof t === 'number') {
+          setCurrentTime(t);
+          if (transcript.length > 0) {
+            setCurrentLineIdx(findCurrentLineIndex(transcript, t));
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [ready, playing, transcript]);
+
+  // ── Auto-scroll when currentLineIdx changes ──
+
+  useEffect(() => {
+    if (
+      currentLineIdx < 0 ||
+      userIsScrolling.current ||
+      currentLineIdx === lastAutoScrollIdx.current
+    ) return;
+
+    const y = lineYPositions.current[currentLineIdx];
+    if (y == null) return;
+
+    lastAutoScrollIdx.current = currentLineIdx;
+    // Scroll so the active line is ~1/3 from the top of the visible area
+    const target = Math.max(0, y - scrollViewHeight.current * 0.33);
+    scrollRef.current?.scrollTo({ y: target, animated: true });
+  }, [currentLineIdx]);
+
+  // ── User scroll detection ──
+
+  const onScrollBeginDrag = useCallback(() => {
+    userIsScrolling.current = true;
+    if (userScrollTimer.current) clearTimeout(userScrollTimer.current);
+  }, []);
+
+  const onScrollEndDrag = useCallback(() => {
+    // Resume auto-scroll after 4 seconds of no user interaction
+    if (userScrollTimer.current) clearTimeout(userScrollTimer.current);
+    userScrollTimer.current = setTimeout(() => {
+      userIsScrolling.current = false;
+    }, 4000);
+  }, []);
+
+  const onScrollViewLayout = useCallback((e: LayoutChangeEvent) => {
+    scrollViewHeight.current = e.nativeEvent.layout.height;
+  }, []);
+
+  const onLineLayout = useCallback((index: number, e: LayoutChangeEvent) => {
+    lineYPositions.current[index] = e.nativeEvent.layout.y;
+  }, []);
+
+  // ── Player callbacks ──
+
+  const onReady = useCallback(async () => {
+    setReady(true);
+    try {
+      const d = await playerRef.current?.getDuration();
+      if (typeof d === 'number') setDuration(d);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const onStateChange = useCallback((state: string) => {
+    if (state === 'playing') setPlaying(true);
+    else if (state === 'paused' || state === 'ended') setPlaying(false);
+  }, []);
+
+  const onError = useCallback((error: string) => {
+    console.warn('YouTube player error:', error);
+  }, []);
+
+  const seekTo = useCallback(async (seconds: number) => {
+    try {
+      await playerRef.current?.seekTo(seconds, true);
+      setCurrentTime(seconds);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // ── Render ──
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn} activeOpacity={0.7}>
-          <Text style={[Typography.markerLarge, { color: colors.ink }]}>✕ End</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn} activeOpacity={0.7}>
+          <Text style={[Typography.headingSmall, { color: colors.ink }]}>Close</Text>
         </TouchableOpacity>
-        <Text style={[Typography.monoSmall, { color: colors.ink3, letterSpacing: 0.6 }]}>
-          DAY 03 · {recallCount} RECALL{String(recallCount) !== '1' ? 'S' : ''}
+        <Text style={[Typography.monoSmall, { color: colors.ink3 }]}>
+          {ready ? 'NOW PLAYING' : 'LOADING…'}
         </Text>
       </View>
 
-      {/* YouTube Video Placeholder */}
-      <View style={{ paddingHorizontal: Spacing.screen, paddingTop: Spacing.xxl }}>
+      {/* YouTube Video Player — native controls, tap to play/pause */}
+      <View style={{ paddingHorizontal: Spacing.screen, paddingTop: Spacing.md }}>
         <View
           style={{
             width: '100%',
             height: videoHeight,
             borderRadius: Radius.xl,
+            overflow: 'hidden',
             backgroundColor: '#000',
-            borderWidth: 1,
-            borderColor: colors.hair,
-            alignItems: 'center',
-            justifyContent: 'center',
           }}
         >
-          <Text style={[Typography.mono, { color: colors.ink3 }]}>
-            youtube.com/watch?v={vid}
-          </Text>
-          <Text style={[Typography.marker, { color: colors.ink4, marginTop: Spacing.md }]}>
-            YouTube player placeholder
-          </Text>
-        </View>
-
-        <View style={styles.videoMeta}>
-          <Text
-            style={[Typography.body, { color: colors.ink, fontWeight: '500', flex: 1 }]}
-            numberOfLines={1}
-          >
-            How AI Learned to Think — Lex Fridman Podcast
-          </Text>
-          <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>42:18</Text>
+          <YoutubePlayer
+            ref={playerRef}
+            height={videoHeight}
+            width={width - Spacing.screen * 2}
+            videoId={vid}
+            play={playing}
+            onReady={onReady}
+            onChangeState={onStateChange}
+            onError={onError}
+            initialPlayerParams={{
+              modestbranding: true,
+              rel: false,
+              controls: true,
+              iv_load_policy: 3,
+            }}
+            webViewProps={{
+              allowsFullscreenVideo: true,
+              javaScriptEnabled: true,
+              domStorageEnabled: true,
+            }}
+          />
         </View>
       </View>
 
-      {/* Transcript */}
+      {/* ── Transcript ── */}
       <ScrollView
+        ref={scrollRef}
         style={styles.transcriptScroll}
         contentContainerStyle={{ padding: Spacing.screen, paddingTop: Spacing.xxxl }}
         showsVerticalScrollIndicator={false}
+        onLayout={onScrollViewLayout}
+        onScrollBeginDrag={onScrollBeginDrag}
+        onScrollEndDrag={onScrollEndDrag}
+        onMomentumScrollEnd={onScrollEndDrag}
+        scrollEventThrottle={16}
       >
         <View style={styles.transcriptHeader}>
           <Text style={[Typography.marker, { color: colors.ink4 }]}>Transcript</Text>
           <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>
-            {transcriptHidden ? 'HIDDEN' : `${SEGMENT.lines.length} LINES`}
+            {transcriptHidden
+              ? 'HIDDEN'
+              : transcriptLoading
+                ? 'FETCHING…'
+                : transcriptError
+                  ? 'ERROR'
+                  : `${transcript.length} LINES`}
           </Text>
         </View>
 
@@ -105,24 +251,59 @@ export default function ListenScreen() {
               Listen without reading. Tap the eye icon to reveal.
             </Text>
           </View>
+        ) : transcriptLoading ? (
+          <View style={styles.transcriptLoading}>
+            <ActivityIndicator size="small" color={colors.accent} />
+            <Text style={[Typography.bodySmall, { color: colors.ink4, marginTop: Spacing.md }]}>
+              Fetching transcript…
+            </Text>
+          </View>
+        ) : transcriptError ? (
+          <View style={[styles.transcriptHiddenBox, { borderColor: colors.hair }]}>
+            <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
+              {transcriptError}
+            </Text>
+          </View>
         ) : (
-          SEGMENT.lines.map((line, i) => (
-            <View
-              key={i}
-              style={[
-                styles.transcriptLine,
-                { borderTopColor: colors.hair2 },
-                i === 0 && { borderTopWidth: 0 },
-              ]}
-            >
-              <Text style={[Typography.monoSmall, styles.transcriptTime, { color: colors.ink4 }]}>
-                {line.t}
-              </Text>
-              <Text style={[Typography.bodyLarge, { color: colors.ink2, flex: 1 }]}>
-                {line.text}
-              </Text>
-            </View>
-          ))
+          transcript.map((line, i) => {
+            const isCurrent = i === currentLineIdx;
+            return (
+              <TouchableOpacity
+                key={i}
+                onLayout={(e) => onLineLayout(i, e)}
+                style={[
+                  styles.transcriptLine,
+                  { borderTopColor: colors.hair2 },
+                  i === 0 && { borderTopWidth: 0 },
+                  isCurrent && { backgroundColor: colors.accentSoft },
+                ]}
+                onPress={() => seekTo(line.start)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    Typography.monoSmall,
+                    styles.transcriptTime,
+                    { color: isCurrent ? colors.accent : colors.ink4 },
+                  ]}
+                >
+                  {formatTimestamp(line.start)}
+                </Text>
+                <Text
+                  style={[
+                    Typography.bodyLarge,
+                    {
+                      color: isCurrent ? colors.ink : colors.ink2,
+                      flex: 1,
+                      fontWeight: isCurrent ? '500' : '400',
+                    },
+                  ]}
+                >
+                  {line.text}
+                </Text>
+              </TouchableOpacity>
+            );
+          })
         )}
       </ScrollView>
 
@@ -156,20 +337,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Spacing.xxxl,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
   },
-  backBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
+  closeBtn: {
+    paddingVertical: Spacing.sm,
+    paddingRight: Spacing.xl,
   },
-  videoMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginTop: Spacing.lg,
-  },
+
+  // ── Transcript ──
   transcriptScroll: { flex: 1 },
+  transcriptLoading: {
+    alignItems: 'center',
+    paddingVertical: Spacing.massive,
+  },
   transcriptHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -186,9 +366,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.xl,
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     borderTopWidth: 1,
+    borderRadius: Radius.md,
   },
-  transcriptTime: { paddingTop: 6, minWidth: 38 },
+  transcriptTime: { paddingTop: 6, minWidth: 42 },
+
+  // ── Bottom ──
   bottomBar: {
     flexDirection: 'row',
     borderTopWidth: 1,

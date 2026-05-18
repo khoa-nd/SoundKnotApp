@@ -29,7 +29,7 @@ export function Card({
   const textColor =
     variant === 'accent' ? colors.paper : colors.ink;
   const subtitleColor =
-    variant === 'accent' ? 'rgba(244,243,238,0.6)' : colors.ink3;
+    variant === 'accent' ? colors.inkInverse : colors.ink3;
 
   return (
     <View

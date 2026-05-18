@@ -1,95 +1,94 @@
 // ── Sound Knot V2 — Typography scale
-// Inter Tight → sans-serif | JetBrains Mono → monospace | Instrument Serif → serif
+// Inter → body/headings | JetBrains Mono → markers/chips/tabs
 
-import { Platform, TextStyle } from 'react-native';
-
-const monoFamily = Platform.select({ ios: 'Menlo', default: 'monospace' });
-const serifFamily = Platform.select({ ios: 'Georgia', default: 'serif' });
+import { TextStyle } from 'react-native';
 
 export const Fonts = {
-  sans: Platform.select({ ios: 'System', default: 'Roboto' }) as string,
-  sansMedium: Platform.select({ ios: 'System', default: 'Roboto' }) as string,
-  sansSemibold: Platform.select({ ios: 'System', default: 'Roboto' }) as string,
-  mono: monoFamily as string,
-  serif: serifFamily as string,
-  serifItalic: serifFamily as string,
-};
+  sans: 'Inter_400Regular',
+  sansMedium: 'Inter_500Medium',
+  sansSemibold: 'Inter_600SemiBold',
+  sansBold: 'Inter_700Bold',
+  mono: 'JetBrainsMono_400Regular',
+  monoMedium: 'JetBrainsMono_500Medium',
+  serif: 'Inter_400Regular',       // Instrument Serif → Inter fallback (no serif loaded)
+  serifItalic: 'Inter_400Regular',
+} as const;
 
 export const Typography = {
-  // Display — serif hero text
+  // Display — large hero text
   heroLarge: {
-    fontFamily: Fonts.serif,
+    fontFamily: Fonts.sansSemibold,
     fontSize: 56,
-    fontWeight: '400' as const,
-    letterSpacing: -2.2,
-    lineHeight: 58,
+    fontWeight: '600' as const,
+    letterSpacing: -1.4,
+    lineHeight: 60,
   },
   hero: {
-    fontFamily: Fonts.serif,
+    fontFamily: Fonts.sansSemibold,
     fontSize: 34,
-    fontWeight: '400' as const,
-    letterSpacing: -0.68,
-    lineHeight: 37,
+    fontWeight: '600' as const,
+    letterSpacing: -0.5,
+    lineHeight: 38,
   },
   titleLarge: {
-    fontFamily: Fonts.serif,
+    fontFamily: Fonts.sansSemibold,
     fontSize: 32,
-    fontWeight: '400' as const,
-    letterSpacing: -0.64,
-    lineHeight: 35,
+    fontWeight: '600' as const,
+    letterSpacing: -0.4,
+    lineHeight: 36,
   },
 
-  // Headings — sans-serif
+  // Headings
   headingLarge: {
     fontFamily: Fonts.sansSemibold,
     fontSize: 28,
     fontWeight: '600' as const,
-    letterSpacing: -0.56,
-    lineHeight: 31,
+    letterSpacing: -0.4,
+    lineHeight: 33,
   },
   heading: {
     fontFamily: Fonts.sansSemibold,
     fontSize: 22,
     fontWeight: '600' as const,
     letterSpacing: -0.22,
-    lineHeight: 26,
+    lineHeight: 27,
   },
   headingSmall: {
     fontFamily: Fonts.sansSemibold,
     fontSize: 18,
     fontWeight: '600' as const,
-    letterSpacing: -0.18,
-    lineHeight: 22,
+    letterSpacing: -0.15,
+    lineHeight: 23,
   },
 
-  // Body — sans-serif
+  // Body
   bodyLarge: {
     fontFamily: Fonts.sans,
     fontSize: 17,
     fontWeight: '400' as const,
-    letterSpacing: -0.085,
-    lineHeight: 24,
+    letterSpacing: -0.08,
+    lineHeight: 25,
   },
   body: {
     fontFamily: Fonts.sans,
     fontSize: 15,
     fontWeight: '400' as const,
-    letterSpacing: -0.075,
+    letterSpacing: -0.07,
     lineHeight: 22,
-  },
-  bodySmall: {
-    fontFamily: Fonts.sans,
-    fontSize: 13,
-    fontWeight: '400' as const,
-    letterSpacing: -0.065,
-    lineHeight: 19,
   },
   bodyMedium: {
     fontFamily: Fonts.sansMedium,
     fontSize: 14,
     fontWeight: '500' as const,
-    letterSpacing: -0.07,
+    letterSpacing: -0.05,
     lineHeight: 20,
+  },
+  bodySmall: {
+    fontFamily: Fonts.sans,
+    fontSize: 13,
+    fontWeight: '400' as const,
+    letterSpacing: -0.05,
+    lineHeight: 19,
   },
 
   // Mono — markers, timestamps, chips, tab bar
@@ -99,19 +98,20 @@ export const Typography = {
     fontWeight: '400' as const,
     letterSpacing: 0.8,
     lineHeight: 14,
+    textTransform: 'uppercase' as const,
   },
   markerLarge: {
     fontFamily: Fonts.mono,
     fontSize: 11,
     fontWeight: '400' as const,
-    letterSpacing: 0.66,
+    letterSpacing: 0.6,
     lineHeight: 15,
   },
   monoSmall: {
     fontFamily: Fonts.mono,
     fontSize: 10.5,
     fontWeight: '400' as const,
-    letterSpacing: 0.21,
+    letterSpacing: 0.2,
     lineHeight: 14,
   },
   mono: {
@@ -122,18 +122,18 @@ export const Typography = {
     lineHeight: 18,
   },
   monoDisplay: {
-    fontFamily: Fonts.mono,
+    fontFamily: Fonts.monoMedium,
     fontSize: 28,
     fontWeight: '500' as const,
-    letterSpacing: -0.28,
-    lineHeight: 30,
+    letterSpacing: -0.2,
+    lineHeight: 32,
   },
   monoStat: {
-    fontFamily: Fonts.mono,
+    fontFamily: Fonts.monoMedium,
     fontSize: 30,
     fontWeight: '500' as const,
-    letterSpacing: -0.6,
-    lineHeight: 30,
+    letterSpacing: -0.5,
+    lineHeight: 32,
   },
 
   // Special
@@ -143,32 +143,34 @@ export const Typography = {
     fontWeight: '400' as const,
     letterSpacing: 0.72,
     lineHeight: 12,
+    textTransform: 'uppercase' as const,
   },
   chip: {
     fontFamily: Fonts.mono,
     fontSize: 10.5,
     fontWeight: '400' as const,
-    letterSpacing: 0.21,
+    letterSpacing: 0.2,
     lineHeight: 14,
+    textTransform: 'uppercase' as const,
   },
   button: {
     fontFamily: Fonts.sansMedium,
     fontSize: 14,
     fontWeight: '500' as const,
-    letterSpacing: -0.07,
+    letterSpacing: -0.05,
     lineHeight: 18,
   },
   buttonSmall: {
     fontFamily: Fonts.sansMedium,
     fontSize: 13,
     fontWeight: '500' as const,
-    letterSpacing: -0.065,
+    letterSpacing: -0.04,
     lineHeight: 17,
   },
 
-  // Serif italic emphasis
+  // Serif italic emphasis (uses Inter italic-like styling)
   serifItalic: {
-    fontFamily: Fonts.serif,
+    fontFamily: Fonts.sans,
     fontStyle: 'italic' as const,
     fontWeight: '400' as const,
   },

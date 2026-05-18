@@ -1,12 +1,42 @@
 // ── Sound Knot V2 — Root Stack Navigator
 // Flow: Home (tabs) → Listen ↔ Dictation → Finished
+import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
+import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
 import { useTheme } from '../src/constants/theme';
 
 export default function RootLayout() {
   const colors = useTheme();
+  const [splashDone, setSplashDone] = useState(false);
+
+  const [fontsLoaded] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    JetBrainsMono_400Regular,
+    JetBrainsMono_500Medium,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      const t = setTimeout(() => setSplashDone(true), 300);
+      return () => clearTimeout(t);
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded || !splashDone) {
+    return (
+      <View style={[styles.splash, { backgroundColor: colors.paper }]}>
+        <Text style={{ fontSize: 32, fontWeight: '800', color: colors.ink, letterSpacing: -0.5 }}>
+          SoundKnot
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.paper }]}>
@@ -19,7 +49,6 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" />
-        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen
           name="listen"
@@ -48,7 +77,10 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1 },
+  splash: {
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

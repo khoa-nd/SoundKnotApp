@@ -25,7 +25,7 @@ const mockUser: User = {
   streak: 0,
   longestStreak: 0,
   level: 'beginner',
-  onboardingComplete: false,
+  onboardingComplete: true,
   handsFreeEnabled: false,
   createdAt: new Date().toISOString(),
 };
