@@ -1,21 +1,48 @@
 // ── Sound Knot V2 — Finished Screen
-// Knot motif + session stats summary
-import React from 'react';
+// Knot motif + session stats summary + persist session to API
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
 import { Knot } from '../src/components/ui/Knot';
+import { useSessionStore } from '../src/stores/sessionStore';
 
 export default function FinishedScreen() {
   const colors = useTheme();
+  const { userVideoId, recallsCount, averageAccuracy, listenedSeconds } = useLocalSearchParams<{
+    userVideoId?: string;
+    recallsCount?: string;
+    averageAccuracy?: string;
+    listenedSeconds?: string;
+  }>();
+
+  const saveSession = useSessionStore((s) => s.saveSession);
+  const saved = useRef(false);
+
+  const recalls = parseInt(recallsCount || '0', 10);
+  const accuracy = parseInt(averageAccuracy || '0', 10);
+  const seconds = parseInt(listenedSeconds || '0', 10);
+
+  // Persist the practice session on mount
+  useEffect(() => {
+    if (saved.current || !userVideoId) return;
+    saved.current = true;
+    saveSession({
+      video_id: userVideoId,
+      accuracy: accuracy / 100,
+      listened_seconds: seconds,
+      pass: recalls,
+      mastery: accuracy / 100,
+    });
+  }, [userVideoId]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
       <View style={styles.heroSection}>
-        <Knot size={200} progress={1} mastery={0.5} pass={3} accentColor={colors.accent} />
+        <Knot size={200} progress={1} mastery={accuracy / 100} pass={recalls} accentColor={colors.accent} />
 
         <Text style={[Typography.marker, { color: colors.accentInk, marginTop: Spacing.xxl }]}>
           Session complete
@@ -30,23 +57,16 @@ export default function FinishedScreen() {
         <View style={[styles.statsCard, { backgroundColor: colors.paper2, borderColor: colors.hair }]}>
           <StatRow
             label="Recalls captured"
-            value="3"
-            delta="+3"
+            value={String(recalls)}
+            delta={`+${recalls}`}
             good
             colors={colors}
           />
           <StatRow
             label="Average match"
-            value="82%"
-            delta="+8"
-            good
-            colors={colors}
-          />
-          <StatRow
-            label="Streak"
-            value="12 days"
-            delta="+1"
-            good
+            value={`${accuracy}%`}
+            delta={accuracy > 0 ? `+${accuracy}` : '0'}
+            good={accuracy > 50}
             colors={colors}
           />
         </View>

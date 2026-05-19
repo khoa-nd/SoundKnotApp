@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { sessionService } from '../services/sessions';
 import type { ListeningSession, Bookmark, AIQuery } from '../types';
 
 export interface SessionState {
@@ -17,6 +18,14 @@ export interface SessionState {
   removeBookmark: (bookmarkId: string) => void;
   addAIQuery: (query: AIQuery) => void;
   loadSessions: (sessions: ListeningSession[]) => void;
+  saveSession: (data: {
+    video_id: string;
+    segment?: string;
+    pass?: number;
+    mastery?: number;
+    accuracy?: number;
+    listened_seconds?: number;
+  }) => Promise<void>;
 }
 
 let tickInterval: ReturnType<typeof setInterval> | null = null;
@@ -104,4 +113,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     }),
 
   loadSessions: (sessions) => set({ sessions }),
+
+  saveSession: async (data) => {
+    try {
+      await sessionService.create(data);
+    } catch (err) {
+      console.warn('Failed to save session to API:', err);
+    }
+  },
 }));

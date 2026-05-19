@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import type { User, UserLevel } from '../types';
+import { authService } from '../services/auth';
+import type { User, UserLevel, Profile, UserProgress } from '../types';
 
 interface UserState {
   user: User | null;
@@ -8,6 +9,7 @@ interface UserState {
 
   // Actions
   setUser: (user: User) => void;
+  loadFromApi: () => Promise<void>;
   updateInterests: (interests: string[]) => void;
   addListeningMinutes: (minutes: number) => void;
   updateStreak: (streak: number) => void;
@@ -17,25 +19,35 @@ interface UserState {
   reset: () => void;
 }
 
-const mockUser: User = {
-  id: 'user-1',
-  displayName: 'Learner',
-  interests: ['technology', 'philosophy', 'science'],
-  totalListeningMinutes: 0,
-  streak: 0,
-  longestStreak: 0,
-  level: 'beginner',
-  onboardingComplete: true,
-  handsFreeEnabled: false,
-  createdAt: new Date().toISOString(),
-};
-
 export const useUserStore = create<UserState>((set, get) => ({
-  user: mockUser,
+  user: null,
   isOnboardingComplete: false,
   handsFreeEnabled: false,
 
   setUser: (user) => set({ user }),
+
+  loadFromApi: async () => {
+    try {
+      const data = await authService.me();
+      const profile = data.profile;
+      const progress = data.progress;
+      const user: User = {
+        id: profile.id,
+        displayName: profile.display_name || 'Learner',
+        interests: profile.interests || [],
+        totalListeningMinutes: progress?.total_minutes ?? 0,
+        streak: progress?.current_streak ?? 0,
+        longestStreak: progress?.longest_streak ?? 0,
+        level: (profile.level as UserLevel) || 'beginner',
+        onboardingComplete: true,
+        handsFreeEnabled: get().handsFreeEnabled,
+        createdAt: profile.created_at,
+      };
+      set({ user });
+    } catch {
+      // ignore — user may not be authenticated
+    }
+  },
 
   updateInterests: (interests) =>
     set((s) => ({ user: s.user ? { ...s.user, interests } : null })),
@@ -74,7 +86,7 @@ export const useUserStore = create<UserState>((set, get) => ({
       handsFreeEnabled: !s.handsFreeEnabled,
     })),
 
-  reset: () => set({ user: mockUser, isOnboardingComplete: false, handsFreeEnabled: false }),
+  reset: () => set({ user: null, isOnboardingComplete: false, handsFreeEnabled: false }),
 }));
 
 function calculateLevel(totalMinutes: number): UserLevel {

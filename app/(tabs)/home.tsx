@@ -1,39 +1,69 @@
 // ── Sound Knot V2 — Home Screen
 // Paste YouTube URL → auto-navigate to Listen
 // Today card + Recent knots + tab bar: Practice | Library | Progress
-import React, { useState } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/constants/theme';
 import { Typography } from '../../src/constants/Typography';
 import { Spacing, Radius } from '../../src/constants/Spacing';
 import { Knot } from '../../src/components/ui/Knot';
 import { Chip } from '../../src/components/ui/Chip';
-
-// Mock data
-const RECENT_ITEMS = [
-  { id: '1', title: 'How LLMs Actually Learn — Gradient Descent Intuition', channel: '3Blue1Brown', segment: 'Seg 3', pass: 3, mastery: 0.62, lastPracticed: '2h ago' },
-  { id: '2', title: 'The Future of Programming Languages', channel: 'Lex Fridman Podcast', segment: 'Seg 1', pass: 2, mastery: 0.45, lastPracticed: 'Yesterday' },
-  { id: '3', title: 'Quantum Computing Explained in 20 Minutes', channel: 'Veritasium', segment: 'Seg 2', pass: 1, mastery: 0.28, lastPracticed: '2 days ago' },
-  { id: '4', title: 'Deep Dive: How Transformers Changed NLP', channel: 'Andrej Karpathy', segment: 'Seg 1', pass: 4, mastery: 0.81, lastPracticed: '3 days ago' },
-];
+import { homeService } from '../../src/services/home';
+import { videoService } from '../../src/services/videos';
+import type { HomeData, PracticeSession } from '../../src/types';
 
 export default function HomeScreen() {
   const colors = useTheme();
   const [urlValue, setUrlValue] = useState('');
-  const active = RECENT_ITEMS[0];
-  const rest = RECENT_ITEMS.slice(1);
+  const [homeData, setHomeData] = useState<HomeData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      setLoading(true);
+      homeService
+        .fetch()
+        .then((data) => {
+          if (!cancelled) setHomeData(data);
+        })
+        .catch(() => {
+          // silently fail — show empty state
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => { cancelled = true; };
+    }, [])
+  );
 
   const extractYouTubeId = (url: string) => {
     const m = url.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
-    return m ? m[1] : 'dQw4w9WgcQ';
+    return m ? m[1] : null;
   };
 
-  const submitUrl = () => {
-    const vid = extractYouTubeId(urlValue.trim() || 'https://youtube.com/watch?v=sample');
-    router.push({ pathname: '/listen', params: { videoId: vid } });
+  const submitUrl = async () => {
+    const vid = extractYouTubeId(urlValue.trim());
+    if (!vid) return;
+
+    setSubmitting(true);
+    try {
+      const { video } = await videoService.add({ youtube_video_id: vid });
+      setUrlValue('');
+      router.push({ pathname: '/listen', params: { videoId: vid, userVideoId: video.id } });
+    } catch {
+      // fallback: navigate without persisting
+      router.push({ pathname: '/listen', params: { videoId: vid } });
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const streak = homeData?.progress?.current_streak ?? 0;
+  const recentKnots = homeData?.recentKnots ?? [];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
@@ -41,7 +71,7 @@ export default function HomeScreen() {
         {/* Date + Streak */}
         <View style={styles.dateRow}>
           <Text style={[Typography.marker, { color: colors.ink4 }]}>Sound Knot · Practice</Text>
-          <Chip label="12 day streak" dotColor={colors.accent} />
+          {streak > 0 && <Chip label={`${streak} day streak`} dotColor={colors.accent} />}
         </View>
 
         {/* Hero text */}
@@ -77,9 +107,14 @@ export default function HomeScreen() {
               { backgroundColor: urlValue ? colors.ink : colors.ink4 },
             ]}
             onPress={submitUrl}
+            disabled={submitting}
             activeOpacity={0.7}
           >
-            <Text style={[Typography.bodyMedium, { color: colors.paper, fontSize: 16 }]}>→</Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color={colors.paper} />
+            ) : (
+              <Text style={[Typography.bodyMedium, { color: colors.paper, fontSize: 16 }]}>→</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -89,85 +124,61 @@ export default function HomeScreen() {
           <Chip label="or use clipboard" />
         </View>
 
-        {/* Today section */}
-        <View style={styles.todaySection}>
-          <View style={styles.sectionHeader}>
-            <Text style={[Typography.marker, { color: colors.ink4 }]}>Today</Text>
-            <Text style={[Typography.marker, { color: colors.ink4 }]}>1 / 4 complete</Text>
+        {/* Recent videos / sessions */}
+        {loading ? (
+          <View style={{ alignItems: 'center', paddingVertical: Spacing.massive }}>
+            <ActivityIndicator size="small" color={colors.accent} />
           </View>
-
-          <TouchableOpacity
-            style={[styles.todayCard, { backgroundColor: colors.paper2, borderColor: colors.hair }]}
-            onPress={() => router.push('/listen')}
-            activeOpacity={0.7}
-          >
-            <Knot size={64} progress={0.45} mastery={active.mastery} pass={active.pass} />
-            <View style={styles.todayInfo}>
-              <Text style={[Typography.marker, { color: colors.ink4, marginBottom: Spacing.xs }]}>
-                Pass {active.pass} · {active.segment}
+        ) : recentKnots.length > 0 ? (
+          <View style={styles.recentSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[Typography.marker, { color: colors.ink4 }]}>Recent videos / sessions</Text>
+              <Text style={[Typography.marker, { color: colors.ink4 }]}>
+                {recentKnots.length} session{recentKnots.length !== 1 ? 's' : ''}
               </Text>
-              <Text
-                style={[Typography.bodyMedium, { flexShrink: 1 }]}
-                numberOfLines={2}
-                ellipsizeMode="tail"
-              >
-                {active.title}
-              </Text>
-              <Text style={[Typography.bodySmall, { color: colors.ink3, marginTop: Spacing.sm }]}>
-                {active.channel}
-              </Text>
-              {/* Mastery dots */}
-              <View style={styles.masteryDots}>
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <View
-                    key={i}
-                    style={{
-                      height: 3,
-                      flex: 1,
-                      borderRadius: 2,
-                      backgroundColor: i < Math.round(active.mastery * 5) ? colors.ink : colors.hair,
-                    }}
-                  />
-                ))}
-              </View>
             </View>
-          </TouchableOpacity>
-
-          {/* Continue button */}
-          <TouchableOpacity
-            style={[styles.continueBtn, { backgroundColor: colors.ink }]}
-            onPress={() => router.push('/listen')}
-            activeOpacity={0.7}
-          >
-            <Text style={[Typography.button, { color: colors.paper }]}>▶ Continue · 3 min</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Recent knots */}
-        <View style={styles.recentSection}>
-          <Text style={[Typography.marker, { color: colors.ink4, marginBottom: Spacing.lg }]}>Recent knots</Text>
-          {rest.map((item) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[styles.recentItem, { borderTopColor: colors.hair }]}
-              onPress={() => router.push('/listen')}
-              activeOpacity={0.7}
-            >
-              <Knot size={40} progress={item.mastery} mastery={item.mastery} pass={item.pass} subdued={0.3} />
-              <View style={styles.recentInfo}>
-                <Text style={[Typography.bodySmall, { fontWeight: '500' }]} numberOfLines={1}>
-                  {item.title}
+            {recentKnots.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.recentItem, { borderTopColor: colors.hair }]}
+                onPress={() =>
+                  router.push({
+                    pathname: '/listen',
+                    params: {
+                      videoId: item.user_videos?.youtube_video_id ?? '',
+                      userVideoId: item.video_id,
+                    },
+                  })
+                }
+                activeOpacity={0.7}
+              >
+                <Knot size={40} progress={item.mastery} mastery={item.mastery} pass={item.pass} subdued={0.3} />
+                <View style={styles.recentInfo}>
+                  <Text style={[Typography.bodySmall, { fontWeight: '500' }]} numberOfLines={1}>
+                    {item.user_videos?.title ?? 'Untitled'}
+                  </Text>
+                  <Text style={[Typography.monoSmall, { color: colors.ink4, marginTop: Spacing.xs }]}>
+                    {item.segment ?? 'Seg 1'} · pass {item.pass}
+                  </Text>
+                </View>
+                <Text style={[Typography.markerLarge, { color: colors.ink3 }]}>
+                  {Math.round(item.mastery * 100)}%
                 </Text>
-                <Text style={[Typography.monoSmall, { color: colors.ink4, marginTop: Spacing.xs }]}>
-                  {item.segment} · pass {item.pass} · {item.lastPracticed}
-                </Text>
-              </View>
-              <Text style={[Typography.markerLarge, { color: colors.ink3 }]}>
-                {Math.round(item.mastery * 100)}%
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.recentSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[Typography.marker, { color: colors.ink4 }]}>Recent videos / sessions</Text>
+            </View>
+            <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
+              <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
+                No sessions yet. Paste a YouTube URL above to start your first session.
               </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+            </View>
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -227,6 +238,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  emptyBox: {
+    padding: Spacing.xxl,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: Radius.xl,
   },
   recentSection: {},
   recentItem: {

@@ -1,6 +1,10 @@
+import { Platform } from 'react-native';
 import { Audio } from 'expo-av';
 
 export async function configureAudioSession() {
+  // Audio session configuration is only relevant on native platforms
+  if (Platform.OS === 'web') return;
+
   try {
     await Audio.setAudioModeAsync({
       allowsRecordingIOS: true,

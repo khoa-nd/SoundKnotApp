@@ -108,11 +108,84 @@ export interface Achievement {
   thresholdStreak?: number;
 }
 
+// ── Auth ──
+export interface AuthSession {
+  access_token: string;
+  refresh_token: string;
+  expires_at?: number;
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  profile: Profile | null;
+}
+
+export interface Profile {
+  id: string;
+  display_name: string | null;
+  interests: string[];
+  level: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserProgress {
+  id: string;
+  current_streak: number;
+  longest_streak: number;
+  total_minutes: number;
+  total_sessions: number;
+  last_session_date: string | null;
+  updated_at: string;
+}
+
+// ── User Videos ──
+export interface UserVideo {
+  id: string;
+  user_id: string;
+  youtube_video_id: string;
+  title: string | null;
+  channel: string | null;
+  thumbnail_url: string | null;
+  added_at: string;
+}
+
+// ── Practice Sessions ──
+export interface PracticeSession {
+  id: string;
+  user_id: string;
+  video_id: string;
+  segment: string | null;
+  pass: number;
+  mastery: number;
+  accuracy: number;
+  listened_seconds: number;
+  created_at: string;
+  user_videos?: {
+    title: string | null;
+    youtube_video_id: string;
+    thumbnail_url: string | null;
+  };
+}
+
+// ── Home Screen Response ──
+export interface HomeData {
+  progress: UserProgress | null;
+  todaySessions: PracticeSession[];
+  recentKnots: PracticeSession[];
+  videos: UserVideo[];
+}
+
 // ── Navigation ──
 export type RootStackParamList = {
   index: undefined;
+  login: undefined;
   onboarding: undefined;
   '(tabs)': undefined;
+  listen: { videoId: string; userVideoId?: string };
+  dictation: { videoId: string; userVideoId?: string };
+  finished: { userVideoId?: string; recallsCount?: string; averageAccuracy?: string; listenedSeconds?: string };
   'player/[id]': { id: string };
   'drill/[id]': { id: string };
   'content/[id]': { id: string };
