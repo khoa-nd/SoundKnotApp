@@ -23,8 +23,8 @@ export default function LoginScreen() {
   const { login, register, isLoading, error, clearError } = useAuthStore();
 
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('ndkhoa.is@gmail.com');
+  const [password, setPassword] = useState('11235813');
   const [displayName, setDisplayName] = useState('');
 
   const toggleMode = () => {
