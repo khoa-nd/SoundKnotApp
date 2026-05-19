@@ -1,0 +1,17 @@
+# Environment variables
+.env
+specs/.env
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+.wrangler/
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
