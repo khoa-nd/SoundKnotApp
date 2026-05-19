@@ -6,31 +6,37 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "soundknot",
-"userInterfaceStyle": "light",
-  "newArchEnabled": true,
-  "splash": {
-    "image": "./assets/images/splash-icon.png",
-    "resizeMode": "contain",
-    "backgroundColor": "#F4F3EF"
-  },
-  "ios": {
-    "supportsTablet": true,
-    "infoPlist": {
-      "UIBackgroundModes": ["audio"],
-      "NSMicrophoneUsageDescription": "SoundKnot uses the microphone for voice commands and pronunciation practice."
-    }
-  },
-  "android": {
-    "adaptiveIcon": {
-      "foregroundImage": "./assets/images/adaptive-icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#F4F3EF"
     },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "SoundKnot uses the microphone for voice commands and pronunciation practice."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#F4F3EF"
+      },
       "edgeToEdgeEnabled": true,
       "permissions": ["RECORD_AUDIO"]
     },
     "web": {
       "favicon": "./assets/images/favicon.png",
-      "bundler": "metro"
+      "bundler": "metro",
+      "output": "single",
+      "name": "SoundKnot",
+      "shortName": "SoundKnot",
+      "description": "Practice English listening with YouTube videos",
+      "backgroundColor": "#F4F3EF",
+      "themeColor": "#E8913A"
     },
     "plugins": [
       "expo-router",

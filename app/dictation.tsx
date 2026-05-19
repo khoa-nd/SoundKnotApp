@@ -10,7 +10,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
@@ -81,6 +81,7 @@ const TARGET_TEXT =
 
 export default function DictationScreen() {
   const colors = useTheme();
+  const { videoId, userVideoId } = useLocalSearchParams<{ videoId?: string; userVideoId?: string }>();
   const [draft, setDraft] = useState('');
   const [recording, setRecording] = useState(false);
   const [recordedSec, setRecordedSec] = useState(0);
@@ -324,7 +325,16 @@ export default function DictationScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: colors.ink }]}
-              onPress={() => router.push('/finished')}
+              onPress={() =>
+                router.push({
+                  pathname: '/finished',
+                  params: {
+                    userVideoId: userVideoId ?? '',
+                    recallsCount: String(recalls.length),
+                    averageAccuracy: String(avgAccuracy),
+                  },
+                })
+              }
               activeOpacity={0.7}
             >
               <Text style={[Typography.buttonSmall, { color: colors.paper }]}>Finish session ✓</Text>

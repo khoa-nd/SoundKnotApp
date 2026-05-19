@@ -12,6 +12,10 @@ class ApiClient {
     this.token = token;
   }
 
+  clearToken() {
+    this.token = null;
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -26,7 +30,14 @@ class ApiClient {
     const response = await fetch(url, { ...options, headers });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+      try {
+        const body = await response.json();
+        if (body.error) errorMessage = body.error;
+      } catch {
+        // ignore parse error
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
