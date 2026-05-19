@@ -1,5 +1,5 @@
 // ── Sound Knot V2 — Listen Screen
-// YouTube player (native controls) + interactive transcript with live highlighting
+// YouTube player (native + web) + interactive transcript with live highlighting
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
@@ -9,25 +9,23 @@ import {
   StyleSheet,
   useWindowDimensions,
   ActivityIndicator,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
   LayoutChangeEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import YoutubePlayer from 'react-native-youtube-iframe';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
 import { fetchTranscript, formatTimestamp, findCurrentLineIndex, type TranscriptLine } from '../src/services/transcript';
+import { YoutubePlayerView, type YoutubePlayerHandle } from '../src/components/youtube/YoutubePlayerView';
 
 // ── Component ──
 
 export default function ListenScreen() {
   const colors = useTheme();
   const { width } = useWindowDimensions();
-  const { videoId } = useLocalSearchParams<{ videoId?: string }>();
-  const playerRef = useRef<any>(null);
+  const { videoId, userVideoId } = useLocalSearchParams<{ videoId?: string; userVideoId?: string }>();
+  const playerRef = useRef<YoutubePlayerHandle>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   // Player state
@@ -164,7 +162,7 @@ export default function ListenScreen() {
 
   const seekTo = useCallback(async (seconds: number) => {
     try {
-      await playerRef.current?.seekTo(seconds, true);
+      await playerRef.current?.seekTo(seconds);
       setCurrentTime(seconds);
     } catch {
       // ignore
@@ -185,7 +183,7 @@ export default function ListenScreen() {
         </Text>
       </View>
 
-      {/* YouTube Video Player — native controls, tap to play/pause */}
+      {/* YouTube Video Player — platform-split component */}
       <View style={{ paddingHorizontal: Spacing.screen, paddingTop: Spacing.md }}>
         <View
           style={{
@@ -196,26 +194,15 @@ export default function ListenScreen() {
             backgroundColor: '#000',
           }}
         >
-          <YoutubePlayer
+          <YoutubePlayerView
             ref={playerRef}
-            height={videoHeight}
-            width={width - Spacing.screen * 2}
             videoId={vid}
+            width={width - Spacing.screen * 2}
+            height={videoHeight}
             play={playing}
             onReady={onReady}
-            onChangeState={onStateChange}
+            onStateChange={onStateChange}
             onError={onError}
-            initialPlayerParams={{
-              modestbranding: true,
-              rel: false,
-              controls: true,
-              iv_load_policy: 3,
-            }}
-            webViewProps={{
-              allowsFullscreenVideo: true,
-              javaScriptEnabled: true,
-              domStorageEnabled: true,
-            }}
           />
         </View>
       </View>
@@ -311,7 +298,12 @@ export default function ListenScreen() {
       <View style={[styles.bottomBar, { borderTopColor: colors.hair, backgroundColor: colors.paper }]}>
         <TouchableOpacity
           style={[styles.recallBtn, { backgroundColor: colors.ink }]}
-          onPress={() => router.push('/dictation')}
+          onPress={() =>
+            router.push({
+              pathname: '/dictation',
+              params: { videoId: vid, userVideoId: userVideoId ?? '' },
+            })
+          }
           activeOpacity={0.7}
         >
           <Text style={[Typography.button, { color: colors.paper }]}>Recall →</Text>
