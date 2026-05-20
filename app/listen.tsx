@@ -22,6 +22,7 @@ import { Spacing, Radius } from '../src/constants/Spacing';
 import { fetchTranscript, formatTimestamp, findCurrentLineIndex, type TranscriptLine } from '../src/services/transcript';
 import { YoutubePlayerView, type YoutubePlayerHandle } from '../src/components/youtube/YoutubePlayerView';
 import { buildTranscriptWindow } from '../src/services/aiTutor';
+import { useSavedPhrasesStore } from '../src/stores/savedPhrasesStore';
 
 // ── Component ──
 
@@ -60,6 +61,10 @@ export default function ListenScreen() {
   // Long-press contextual menu
   const [menuLineIdx, setMenuLineIdx] = useState<number | null>(null);
 
+  // Bookmarks
+  const { hydrated: phrasesHydrated, load: loadPhrases, hasPhrase, add: addPhrase, removeByLine } =
+    useSavedPhrasesStore();
+
   const vid = videoId ?? 'dQw4w9WgcQ';
   const videoHeight = ((width - Spacing.screen * 2) * 9) / 16;
 
@@ -87,6 +92,10 @@ export default function ListenScreen() {
 
     return () => { cancelled = true; };
   }, [vid]);
+
+  useEffect(() => {
+    if (!phrasesHydrated) loadPhrases();
+  }, [phrasesHydrated, loadPhrases]);
 
   // ── Poll current time for transcript highlighting ──
 
@@ -290,6 +299,7 @@ export default function ListenScreen() {
         ) : (
           transcript.map((line, i) => {
             const isCurrent = i === currentLineIdx;
+            const bookmarked = phrasesHydrated && hasPhrase(vid, line.start);
             return (
               <TouchableOpacity
                 key={i}
@@ -304,15 +314,41 @@ export default function ListenScreen() {
                 delayLongPress={350}
                 activeOpacity={0.7}
               >
-                <Text
-                  style={[
-                    Typography.monoSmall,
-                    styles.transcriptTime,
-                    { color: isCurrent ? colors.accent : colors.ink4 },
-                  ]}
-                >
-                  {formatTimestamp(line.start)}
-                </Text>
+                <View style={styles.transcriptGutter}>
+                  <Text
+                    style={[
+                      Typography.monoSmall,
+                      { color: isCurrent ? colors.accent : colors.ink4 },
+                    ]}
+                  >
+                    {formatTimestamp(line.start)}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (bookmarked) {
+                        removeByLine(vid, line.start);
+                      } else {
+                        addPhrase({
+                          text: line.text,
+                          videoId: vid,
+                          videoTitle: videoTitle ?? undefined,
+                          videoChannel: videoChannel ?? undefined,
+                          start: line.start,
+                          kind: 'phrase',
+                        });
+                      }
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    style={styles.bookmarkBtn}
+                    activeOpacity={0.6}
+                  >
+                    <Ionicons
+                      name={bookmarked ? 'bookmark' : 'bookmark-outline'}
+                      size={16}
+                      color={bookmarked ? colors.accent : colors.ink4}
+                    />
+                  </TouchableOpacity>
+                </View>
                 <Text
                   style={[
                     Typography.bodyLarge,
@@ -468,7 +504,16 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderRadius: Radius.md,
   },
-  transcriptTime: { paddingTop: 6, minWidth: 42 },
+  transcriptGutter: {
+    minWidth: 48,
+    alignItems: 'flex-start',
+    paddingTop: 6,
+    gap: Spacing.sm,
+  },
+  bookmarkBtn: {
+    paddingVertical: 2,
+    paddingRight: 4,
+  },
 
   // ── Bottom ──
   bottomBar: {

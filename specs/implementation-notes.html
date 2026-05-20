@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20 (home screen video list).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20 (bookmarks + Library tabs).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -72,6 +72,7 @@
   <li><span class="badge done">5 ✓</span> Long-press contextual menu — Ask AI Tutor about selection</li>
   <li><span class="badge done">6 ✓</span> AI integration plan + dual-mode runtime + Settings screen</li>
   <li><span class="badge done">7 ✓</span> Home screen — video library list replaces Recent sessions</li>
+  <li><span class="badge done">8 ✓</span> Bookmark per transcript line + Library Phrase/Vocabulary tabs</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -239,6 +240,39 @@ Content-Type: application/json
 <div class="tradeoff">
   Mastery is no longer visible from Home. If we want to bring it back without breaking the new card layout, the cleanest path is a small mastery pill on the right-hand side of each card (matches the existing badge styling). Not in this delivery.
 </div>
+
+<h2>Item 8 — Bookmarks per transcript line + Library Phrase/Vocabulary tabs</h2>
+<p><em>Spec:</em> "add bookmark icon under timestamp along the transcript for each sentence. when user touch on bookmark, save this sentence into library screen. In library screen, there are two vertical tabs : Phrase and Vocabulary… clean up all videos listing in the Library screen."</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  New persistent store at <code>src/stores/savedPhrasesStore.ts</code> (Zustand + AsyncStorage, mirrors the <code>aiSettingsStore</code> shape). Each saved entry is <code>{ id, text, kind: 'phrase' | 'vocabulary', videoId, videoTitle, videoChannel, start, createdAt }</code>, persisted under <code>soundknot_saved_phrases</code>. Lookups use a composite key of <code>videoId@startMs</code> so toggling on the transcript is O(n) but stable across re-renders.
+</div>
+<ul>
+  <li><strong>Listen screen:</strong> the timestamp column became a small "gutter" — timestamp on top, bookmark <code>TouchableOpacity</code> directly under it. Tapping the bookmark calls <code>addPhrase</code> / <code>removeByLine</code> and toggles between <code>bookmark-outline</code> and the filled <code>bookmark</code> Ionicon (accent orange when saved). The inner Touchable swallows the press, so the row's <code>onPress={() =&gt; seekTo(line.start)}</code> still fires for the rest of the row.</li>
+  <li><strong>Default kind = <code>phrase</code>.</strong> Promotion to <code>vocabulary</code> happens from the Library row (long-press or kebab → "Move to Vocabulary"). Keeping the bookmark gesture single-tap means there's nothing to learn for the common case.</li>
+</ul>
+
+<h3>Library rewrite</h3>
+<div class="decision">
+  Old <code>app/(tabs)/library.tsx</code> (saved videos list + search) replaced wholesale. New screen has a two-segment pill tab bar (<strong>Phrase</strong> / <strong>Vocabulary</strong>) with per-tab counts, then a list of saved entries showing the sentence, source video title, and timestamp. Tapping a row reopens the source video in Listen; long-press / kebab opens an action sheet with <strong>Move to other tab</strong>, <strong>Open video</strong>, and <strong>Delete</strong>.
+</div>
+
+<h3>Tradeoffs</h3>
+<div class="tradeoff">
+  <strong>Saved videos are no longer reachable from Library.</strong> Per the spec ("clean up all videos listing in the Library screen"), the video list and search field are gone. Home already shows the full video set (Item 7), so this is intentional — but if the app grows past the Home list capacity, we'll want a separate "Videos" tab rather than reintroducing the list here.
+</div>
+<div class="tradeoff">
+  <strong>No automatic lemmatisation for vocabulary.</strong> The Vocabulary tab stores whole sentences just like Phrase — kind is just a tag. If you want true single-word vocab, the cleanest follow-up is a "trim selection" sheet on the Library row that lets the user pick a span before promoting to Vocabulary.
+</div>
+
+<h3>Files touched</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>src/stores/savedPhrasesStore.ts</code></td><td>New — persisted store with add / remove / removeByLine / setKind / hasPhrase / findByLine</td></tr>
+  <tr><td><code>app/listen.tsx</code></td><td>Bookmark column under timestamp; loads store on mount; per-line toggle</td></tr>
+  <tr><td><code>app/(tabs)/library.tsx</code></td><td>Replaced video list with Phrase/Vocabulary tabs reading from savedPhrasesStore</td></tr>
+</table>
 
 <h2>Anything else worth knowing</h2>
 <ul>
