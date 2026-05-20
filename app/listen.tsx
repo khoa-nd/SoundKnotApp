@@ -10,21 +10,30 @@ import {
   useWindowDimensions,
   ActivityIndicator,
   LayoutChangeEvent,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
 import { fetchTranscript, formatTimestamp, findCurrentLineIndex, type TranscriptLine } from '../src/services/transcript';
 import { YoutubePlayerView, type YoutubePlayerHandle } from '../src/components/youtube/YoutubePlayerView';
+import { buildTranscriptWindow } from '../src/services/aiTutor';
 
 // ── Component ──
 
 export default function ListenScreen() {
   const colors = useTheme();
   const { width } = useWindowDimensions();
-  const { videoId, userVideoId } = useLocalSearchParams<{ videoId?: string; userVideoId?: string }>();
+  const { videoId, userVideoId, videoTitle, videoChannel } = useLocalSearchParams<{
+    videoId?: string;
+    userVideoId?: string;
+    videoTitle?: string;
+    videoChannel?: string;
+  }>();
   const playerRef = useRef<YoutubePlayerHandle>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -47,6 +56,9 @@ export default function ListenScreen() {
   const userIsScrolling = useRef(false);
   const userScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastAutoScrollIdx = useRef(-1);
+
+  // Long-press contextual menu
+  const [menuLineIdx, setMenuLineIdx] = useState<number | null>(null);
 
   const vid = videoId ?? 'dQw4w9WgcQ';
   const videoHeight = ((width - Spacing.screen * 2) * 9) / 16;
@@ -169,6 +181,30 @@ export default function ListenScreen() {
     }
   }, []);
 
+  // ── Open AI Tutor with current transcript window + optional selection ──
+  const openAiTutor = useCallback(
+    (selection?: string) => {
+      const transcriptWindow = transcript.length
+        ? buildTranscriptWindow(transcript, currentTime)
+        : undefined;
+      router.push({
+        pathname: '/ai-tutor' as any,
+        params: {
+          videoId: vid,
+          userVideoId: userVideoId ?? '',
+          videoTitle: videoTitle ?? '',
+          videoChannel: videoChannel ?? '',
+          transcriptWindow: transcriptWindow ?? '',
+          selection: selection ?? '',
+          prefill: selection
+            ? `Can you explain "${selection}" in the context of this video?`
+            : '',
+        },
+      });
+    },
+    [transcript, currentTime, vid, userVideoId, videoTitle, videoChannel],
+  );
+
   // ── Render ──
 
   return (
@@ -262,9 +298,10 @@ export default function ListenScreen() {
                   styles.transcriptLine,
                   { borderTopColor: colors.hair2 },
                   i === 0 && { borderTopWidth: 0 },
-                  isCurrent && { backgroundColor: colors.accentSoft },
                 ]}
                 onPress={() => seekTo(line.start)}
+                onLongPress={() => setMenuLineIdx(i)}
+                delayLongPress={350}
                 activeOpacity={0.7}
               >
                 <Text
@@ -282,7 +319,7 @@ export default function ListenScreen() {
                     {
                       color: isCurrent ? colors.ink : colors.ink2,
                       flex: 1,
-                      fontWeight: isCurrent ? '500' : '400',
+                      fontWeight: isCurrent ? '700' : '400',
                     },
                   ]}
                 >
@@ -309,15 +346,84 @@ export default function ListenScreen() {
           <Text style={[Typography.button, { color: colors.paper }]}>Recall →</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={[styles.tutorBtn, { borderColor: colors.hair }]}
+          onPress={() => openAiTutor()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="sparkles-outline" size={16} color={colors.ink} />
+          <Text style={[Typography.button, { color: colors.ink, marginLeft: Spacing.sm }]}>Ask AI Tutor</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.eyeBtn, { borderColor: colors.hair }]}
           onPress={() => setTranscriptHidden(!transcriptHidden)}
           activeOpacity={0.7}
         >
-          <Text style={{ fontSize: 18, color: colors.ink }}>
-            {transcriptHidden ? '👁' : '👁‍🗨'}
-          </Text>
+          <Ionicons
+            name={transcriptHidden ? 'eye-off-outline' : 'eye-outline'}
+            size={22}
+            color={colors.ink}
+          />
         </TouchableOpacity>
       </View>
+
+      {/* Long-press contextual menu */}
+      <Modal
+        visible={menuLineIdx !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuLineIdx(null)}
+      >
+        <Pressable style={styles.menuBackdrop} onPress={() => setMenuLineIdx(null)}>
+          <Pressable style={[styles.menuSheet, { backgroundColor: colors.paper, borderColor: colors.hair }]}>
+            {menuLineIdx !== null && transcript[menuLineIdx] && (
+              <>
+                <Text style={[Typography.marker, { color: colors.ink4 }]}>SELECTED</Text>
+                <Text style={[Typography.bodyMedium, { color: colors.ink, marginTop: Spacing.sm }]} numberOfLines={3}>
+                  "{transcript[menuLineIdx].text}"
+                </Text>
+                <View style={[styles.menuDivider, { backgroundColor: colors.hair }]} />
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    const sel = transcript[menuLineIdx].text;
+                    setMenuLineIdx(null);
+                    openAiTutor(sel);
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="sparkles-outline" size={18} color={colors.accent} />
+                  <Text style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}>
+                    Ask AI Tutor
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    seekTo(transcript[menuLineIdx].start);
+                    setMenuLineIdx(null);
+                  }}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="play-circle-outline" size={18} color={colors.ink2} />
+                  <Text style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}>
+                    Play from here
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => setMenuLineIdx(null)}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="close-outline" size={18} color={colors.ink3} />
+                  <Text style={[Typography.bodyMedium, { color: colors.ink2, marginLeft: Spacing.lg }]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -380,6 +486,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  tutorBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    height: 52,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   eyeBtn: {
     width: 52,
     height: 52,
@@ -387,5 +502,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  menuBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(42, 37, 34, 0.45)',
+    justifyContent: 'flex-end',
+    padding: Spacing.screen,
+  },
+  menuSheet: {
+    borderRadius: Radius.xxxl,
+    borderWidth: 1,
+    padding: Spacing.xxl,
+    marginBottom: Spacing.xl,
+  },
+  menuDivider: { height: 1, marginVertical: Spacing.lg },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
   },
 });

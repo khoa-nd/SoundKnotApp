@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Implementation Notes — product_20260520.md</title>
+<style>
+  :root {
+    --paper: #f4f3ef;
+    --paper2: #ecead2;
+    --ink: #2a2522;
+    --ink2: #4a4440;
+    --ink3: #7a756f;
+    --hair: rgba(42, 37, 34, 0.10);
+    --accent: #e8913a;
+    --accentInk: #7a3d0a;
+    --positive: #00897b;
+    --negative: #e53935;
+  }
+  body {
+    font-family: -apple-system, "Inter", system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    max-width: 880px;
+    margin: 40px auto;
+    padding: 0 20px 80px;
+    line-height: 1.55;
+  }
+  h1 { font-size: 28px; letter-spacing: -0.01em; margin-bottom: 4px; }
+  h2 { font-size: 20px; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--hair); }
+  h3 { font-size: 15px; color: var(--ink2); margin-top: 22px; margin-bottom: 6px; }
+  .subtitle { color: var(--ink3); font-size: 14px; margin-bottom: 32px; }
+  .badge {
+    display: inline-block;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--paper2);
+    color: var(--ink2);
+    margin-right: 6px;
+  }
+  .badge.done { background: rgba(0, 137, 123, 0.12); color: var(--positive); }
+  .badge.partial { background: rgba(232, 145, 58, 0.18); color: var(--accentInk); }
+  .badge.pending { background: rgba(122, 117, 111, 0.14); color: var(--ink3); }
+  .badge.qa { background: rgba(229, 57, 53, 0.10); color: var(--negative); }
+  code { background: var(--paper2); padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  pre { background: var(--paper2); padding: 12px 14px; border-radius: 8px; font-size: 13px; overflow-x: auto; }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .decision { background: var(--paper2); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
+  .tradeoff { background: rgba(229, 57, 53, 0.06); border-left: 3px solid var(--negative); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
+  .qa-item { background: rgba(232, 145, 58, 0.10); border-left: 3px solid var(--accent); padding: 10px 14px; margin: 10px 0; border-radius: 4px; }
+  small { color: var(--ink3); }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--hair); font-size: 13px; }
+  th { color: var(--ink3); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<h1>Implementation Notes — product_20260520.md</h1>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20.</div>
+
+<h2>Status overview</h2>
+<ul>
+  <li><span class="badge done">1 ✓</span> Transcript sentence merging — full sentence per row</li>
+  <li><span class="badge done">2 ✓</span> "Ask AI Tutor" button on Listen + new conversational AI screen</li>
+  <li><span class="badge done">3 ✓</span> Eye icon swapped to Ionicons (matches tab nav)</li>
+  <li><span class="badge done">4 ✓</span> Active transcript line is now bolded (no background tint)</li>
+  <li><span class="badge done">5 ✓</span> Long-press contextual menu — Ask AI Tutor about selection</li>
+  <li><span class="badge done">6 ✓</span> AI integration plan + dual-mode runtime + Settings screen</li>
+</ul>
+<p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
+
+<h2>Item 1 — Transcript sentence merging</h2>
+<p><em>Spec:</em> "combine a full sentence (separated by dot to dot) in a row".</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Strict sentence-boundary splitting in <code>src/services/transcript.ts</code>. The previous logic forced a flush whenever buffered fragments exceeded a 15-second window — that is the root cause of the mid-sentence splits.
+</div>
+<ul>
+  <li>Removed the 15s soft cap; raised the safety cap to <strong>90s</strong> so we still bail out on transcripts that contain no punctuation at all (auto-generated YouTube captions for some videos lack periods entirely).</li>
+  <li>Sentence boundary widened from <code>[.!?]$</code> at end of fragment to also accept <code>[.!?]</code> followed by a closing quote/paren, e.g. <code>he said."</code>.</li>
+  <li>Trailing whitespace and stray newlines normalised when joining fragments (<code>normalizeFragmentText</code>).</li>
+</ul>
+
+<h3>Tradeoffs / known limits</h3>
+<div class="tradeoff">
+  <strong>Auto-generated transcripts without punctuation</strong> still produce one giant ≤90-second blob. There's no clean way to split those without adding a heuristic (pause-based, capitalisation-based) or running them through an AI model. Not in this delivery; flagged as a future improvement.
+</div>
+
+<h2>Item 3 — Eye icon alignment with nav</h2>
+<div class="decision">
+  Replaced the emoji glyphs (<code>👁</code> / <code>👁‍🗨</code>) with Ionicons <code>eye-outline</code> and <code>eye-off-outline</code> at size 22, matching the family/size used by the bottom tab bar.
+</div>
+
+<h2>Item 4 — Bold-text highlight</h2>
+<div class="decision">
+  Removed the soft-orange background tint on the active transcript line. The active line's text now uses <code>fontWeight: '700'</code>; the timestamp stays accent-orange so the row remains scannable when scrolled past.
+</div>
+
+<h2>Item 2 — AI Tutor screen + Recall-row button</h2>
+<p><em>Spec:</em> "add one more button called 'Ask AI Tutor' next to Recall… open another screen in a conversational UI… voice and text input… close and get back to practice screen with the same state."</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  New screen at <code>app/ai-tutor.tsx</code>, registered in <code>app/_layout.tsx</code> with <code>presentation: 'modal'</code> and <code>animation: 'slide_from_bottom'</code>. Modal presentation means the underlying Listen screen stays mounted, so closing the tutor returns the user to the exact same playback / scroll state automatically — that satisfies the "same state" requirement without any persistence work.
+</div>
+
+<h3>UI</h3>
+<ul>
+  <li>Bottom action row on Listen now has three buttons: <strong>Recall →</strong> (primary, ink), <strong>Ask AI Tutor</strong> (ghost, with sparkles icon), and the eye toggle.</li>
+  <li>Chat layout: user bubbles right-aligned (ink background, paper text), AI bubbles left-aligned (paper2 background). A thinking spinner is shown while a response is streaming.</li>
+  <li>Settings gear in the AI Tutor header opens <code>/ai-settings</code> (Item 6).</li>
+</ul>
+
+<div class="tradeoff">
+  <strong>Web caveat:</strong> voice input is disabled on the web build. <code>expo-av</code>'s recording API is native-only; web users see an inline error suggesting they type instead. A Web Speech / MediaRecorder path is feasible later but adds a separate code path for transcription.
+</div>
+
+<h2>Item 5 — Long-press → Ask AI Tutor</h2>
+<p><em>Spec:</em> "long touch on screen and select any vocabulary or sentence, a contextual menu allows me to 'Ask AI Tutor' then open up AI screen above with question like 'Can you explain me &lt;selected_text&gt; in the context of this video?'"</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Long-press on a transcript line opens a bottom-sheet contextual menu with three actions: <strong>Ask AI Tutor</strong>, <strong>Play from here</strong>, <strong>Cancel</strong>. Tapping Ask AI Tutor opens the AI screen with the line text pre-filled into the prompt: <code>"Can you explain "&lt;selected&gt;" in the context of this video?"</code>.
+</div>
+
+<h3>Selection granularity — important deviation</h3>
+<div class="tradeoff">
+  React Native does not expose a cross-platform API for arbitrary text-range selection inside a custom view that lets you intercept a "Look Up" / "Define" menu. The spec phrasing ("any vocabulary or sentence") implies free-form word-range selection. That would require either (a) an iOS-only path using <code>UITextView</code> menu items, or (b) re-rendering the transcript inside a WebView so the browser's native selection works.
+  <br /><br />
+  Shipped instead: <strong>line-level selection</strong>. Long-press picks the entire transcript line as the unit. The selected line is shown as a banner at the top of the AI Tutor screen. The user can still ask follow-up questions about a specific word inside the line via free text. If word-level selection becomes important, the cleanest path is a follow-up that adds a "trim selection" sheet between the menu and the AI screen.
+</div>
+
+<h2>Item 6 — AI integration</h2>
+
+<h3>Q&amp;A answers</h3>
+<table>
+  <tr><th>Question</th><th>Answer</th></tr>
+  <tr><td>Providers</td><td>Google Gemini</td></tr>
+  <tr><td>Key storage</td><td>Backend proxy</td></tr>
+  <tr><td>Voice</td><td>Use the configured AI provider's STT</td></tr>
+  <tr><td>Context</td><td>Nearby transcript window + video title</td></tr>
+</table>
+
+<h3>Architecture</h3>
+<div class="decision">
+  Two-mode service in <code>src/services/aiTutor.ts</code>:
+  <ol>
+    <li><strong>Proxy (default):</strong> <code>POST {apiBaseUrl}/ai/chat</code> with <code>{ provider, model, messages, context }</code>. The bearer token from <code>authStore</code> is attached automatically by <code>apiClient</code>. The backend holds the API key — this matches the answer you gave.</li>
+    <li><strong>Direct (fallback):</strong> calls Gemini's <code>generativelanguage.googleapis.com/v1beta/models/{model}:generateContent</code> using a key the user pastes in Settings. Useful before the proxy endpoint ships, and as an escape hatch for testing different keys.</li>
+  </ol>
+  Provider type is an enum (<code>'gemini'</code> only today) so adding OpenAI or Anthropic later is a one-file change.
+</div>
+
+<h3>Files added</h3>
+<table>
+  <tr><th>File</th><th>Purpose</th></tr>
+  <tr><td><code>src/services/aiTutor.ts</code></td><td>chat() with mode router, prompt builder, transcript window helper</td></tr>
+  <tr><td><code>src/stores/aiSettingsStore.ts</code></td><td>Zustand store; persists settings to AsyncStorage under <code>soundknot_ai_settings</code></td></tr>
+  <tr><td><code>app/ai-tutor.tsx</code></td><td>Conversational chat screen — text + voice input, settings gear</td></tr>
+  <tr><td><code>app/ai-settings.tsx</code></td><td>Mode toggle, provider, model picker, API key input, Test connection</td></tr>
+</table>
+
+<h3>Backend contract — what the server needs to expose</h3>
+<p>The proxy endpoint expected by the app:</p>
+<pre>POST /ai/chat
+Authorization: Bearer &lt;user session token&gt;
+Content-Type: application/json
+
+{
+  "provider": "gemini",
+  "model": "gemini-2.0-flash",
+  "messages": [
+    { "role": "user", "content": "what does 'in the saddle' mean?" }
+  ],
+  "context": {
+    "videoTitle": "...",
+    "videoChannel": "...",
+    "videoId": "...",
+    "transcriptWindow": "...",
+    "selection": "..."
+  }
+}
+
+→ 200 { "reply": "..." }
+→ non-2xx { "error": "..." }</pre>
+<p>The server is responsible for: holding the Gemini key, prepending the system prompt, and (for voice) accepting <code>messages[*].audio = { base64, mimeType }</code> and forwarding it as Gemini <code>inlineData</code>. The exact same payload shape works for OpenAI Whisper if you swap providers later.</p>
+
+<h3>Voice input</h3>
+<div class="decision">
+  Native: records via <code>expo-av</code> with <code>HIGH_QUALITY</code> preset, reads the resulting file as base64, attaches it to the next user message as <code>audio = { base64, mimeType }</code>. Gemini's <code>inlineData</code> path accepts audio directly and does transcription + answer in one round-trip — no separate STT call. This matches your "use the configured AI provider's STT" answer.
+</div>
+<div class="tradeoff">
+  <strong>Web:</strong> not implemented (per §12.4 of <code>technical_docs.md</code>, the existing dictation mic was already a UI-only sim on web). The button shows an inline error on web; users can still type.
+  <br /><br />
+  <strong>Mic permissions:</strong> already declared in <code>app.json</code> for iOS (<code>NSMicrophoneUsageDescription</code>) and Android (<code>RECORD_AUDIO</code>). No <code>app.json</code> changes needed.
+</div>
+
+<h3>Context window</h3>
+<div class="decision">
+  <code>buildTranscriptWindow(lines, currentSeconds, halfWindow=15)</code> picks every transcript line that overlaps <code>[t-15, t+15]</code>. If nothing matches (e.g. before playback starts) it falls back to the first 5 lines. The Listen screen passes this window plus video title/channel into navigation params when opening AI Tutor.
+</div>
+
+<h3>Settings UX</h3>
+<ul>
+  <li>Two-segment toggle: <em>Backend proxy</em> vs <em>Direct (Gemini)</em>.</li>
+  <li>Model picker shows the current Gemini lineup (<code>gemini-2.0-flash</code>, <code>2.0-flash-lite</code>, <code>1.5-pro</code>, <code>1.5-flash</code>).</li>
+  <li>Key field is masked by default with a show/hide eye; persists on blur.</li>
+  <li>"Test connection" button sends a single <code>"Say 'ok' if you can read this."</code> message and shows the response or error inline.</li>
+</ul>
+
+<h3>Routing</h3>
+<ul>
+  <li>Two new <code>Stack.Screen</code> entries in <code>app/_layout.tsx</code>: <code>ai-tutor</code> (modal, slide-from-bottom) and <code>ai-settings</code> (slide-from-right).</li>
+  <li><code>router.push</code> calls cast the new pathnames as <code>any</code> in two places. Reason: Expo Router auto-generates typed routes at <code>.expo/types/router.d.ts</code> only when the dev server runs; <code>tsc --noEmit</code> on a fresh checkout doesn't see the new routes yet. Restarting <code>expo start</code> regenerates the types — at that point the casts can be removed.</li>
+</ul>
+
+<h2>Anything else worth knowing</h2>
+<ul>
+  <li>The legacy <code>src/services/ai.ts</code> stub and <code>src/hooks/useAICompanion.ts</code> are untouched. They aren't used by any V2 screen and the new <code>aiTutor.ts</code> service replaces them. Safe to delete in a follow-up cleanup if you want.</li>
+  <li>Listen now accepts two new optional params (<code>videoTitle</code>, <code>videoChannel</code>) so the AI Tutor can mention what's playing. <code>home.tsx</code> doesn't pass them yet — they fall back to empty strings, no harm. A small follow-up could enrich them at navigation time using the values from <code>videoService.add()</code>'s response.</li>
+  <li>The "Test connection" button in <code>ai-settings.tsx</code> uses the <em>currently-typed</em> key (not the saved one), so you can validate before persisting.</li>
+  <li>Type-check command run after each phase: <code>npx tsc --noEmit</code> — clean.</li>
+</ul>
+
+</body>
+</html>

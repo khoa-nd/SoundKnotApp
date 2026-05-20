@@ -14,16 +14,25 @@ export interface TranscriptData {
   videoId: string;
 }
 
-// Sentence-ending punctuation pattern
-const SENTENCE_END = /[.!?]$/;
+// Sentence-ending punctuation. Matches `.`/`!`/`?` optionally followed
+// by a closing quote, paren, or bracket — e.g. `he said."`, `(yes!)`.
+const SENTENCE_END = /[.!?]["'”’)\]]?\s*$/;
 
-// Max seconds before forcing a new line even without punctuation
-const MAX_MERGE_DURATION = 15;
+// Hard safety cap: only triggers for transcripts with no punctuation at all
+// (some auto-generated YouTube captions). Sentence boundaries are the primary
+// split signal; this just prevents one unbounded blob.
+const MAX_MERGE_DURATION = 90;
+
+function normalizeFragmentText(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
 
 /**
- * Merge raw transcript fragments into meaningful sentences.
- * Fragments are joined until we hit sentence-ending punctuation
- * or exceed MAX_MERGE_DURATION seconds from the first fragment.
+ * Merge raw transcript fragments into full sentences.
+ *
+ * Primary boundary: sentence-ending punctuation (`.`, `!`, `?`, including a
+ * trailing quote/paren). The 90-second cap is a safety net for unpunctuated
+ * captions; punctuated transcripts are split strictly dot-to-dot.
  */
 function mergeIntoSentences(fragments: TranscriptLine[]): TranscriptLine[] {
   if (fragments.length === 0) return [];
@@ -35,36 +44,26 @@ function mergeIntoSentences(fragments: TranscriptLine[]): TranscriptLine[] {
 
   for (const frag of fragments) {
     const fragEnd = frag.start + frag.duration;
-    const wouldExceed = (fragEnd - bufStart) > MAX_MERGE_DURATION;
+    const text = normalizeFragmentText(frag.text);
+    if (!text) continue;
 
-    // If adding this fragment would exceed the max duration and we already
-    // have content, flush the buffer first
-    if (wouldExceed && buf.length > 0) {
-      merged.push({
-        text: buf.join(' '),
-        start: bufStart,
-        duration: bufEnd - bufStart,
-      });
-      buf = [];
-      bufStart = frag.start;
-    }
-
-    buf.push(frag.text);
+    if (buf.length === 0) bufStart = frag.start;
+    buf.push(text);
     bufEnd = fragEnd;
 
-    // Flush on sentence-ending punctuation
-    if (SENTENCE_END.test(frag.text)) {
+    const endsSentence = SENTENCE_END.test(text);
+    const exceededCap = (bufEnd - bufStart) > MAX_MERGE_DURATION;
+
+    if (endsSentence || exceededCap) {
       merged.push({
         text: buf.join(' '),
         start: bufStart,
         duration: bufEnd - bufStart,
       });
       buf = [];
-      bufStart = fragEnd;
     }
   }
 
-  // Flush remaining
   if (buf.length > 0) {
     merged.push({
       text: buf.join(' '),
