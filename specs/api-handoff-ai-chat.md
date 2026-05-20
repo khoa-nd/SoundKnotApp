@@ -59,7 +59,7 @@ Content-Type: application/json
 ```json
 {
   "provider": "gemini",
-  "model": "gemini-2.0-flash",
+  "model": "gemini-3.5-flash",
   "messages": [
     { "role": "user", "content": "What does 'in the saddle' mean here?" },
     { "role": "assistant", "content": "..." },
@@ -84,7 +84,7 @@ Content-Type: application/json
 | Field | Type | Required | Notes |
 |-------|------|----------|-------|
 | `provider` | `"gemini"` | yes | Only one value today. Plan for `"openai"` / `"anthropic"` later. |
-| `model` | string | yes | One of `gemini-2.0-flash`, `gemini-2.0-flash-lite`, `gemini-1.5-pro`, `gemini-1.5-flash`. |
+| `model` | string | yes | One of `gemini-3.5-flash`, `gemini-2.5-pro`, `gemini-3.1-pro`, `gemini-3-flash-preview`, `gemini-3.1-flash-lite`. |
 | `messages` | array | yes | Full conversation history, oldest first. |
 | `messages[].role` | `"user"` \| `"assistant"` | yes | |
 | `messages[].content` | string | yes | May be empty if `audio` is present. |
@@ -221,7 +221,7 @@ curl -X POST https://api.soundknot.app/ai/chat \
   -H "Content-Type: application/json" \
   -d '{
     "provider": "gemini",
-    "model": "gemini-2.0-flash",
+    "model": "gemini-3.5-flash",
     "messages": [{ "role": "user", "content": "Say ok if you can read this." }]
   }'
 ```

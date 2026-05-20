@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20.</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20 (model lineup refresh).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -174,7 +174,7 @@ Content-Type: application/json
 
 {
   "provider": "gemini",
-  "model": "gemini-2.0-flash",
+  "model": "gemini-3.5-flash",
   "messages": [
     { "role": "user", "content": "what does 'in the saddle' mean?" }
   ],
@@ -209,7 +209,7 @@ Content-Type: application/json
 <h3>Settings UX</h3>
 <ul>
   <li>Two-segment toggle: <em>Backend proxy</em> vs <em>Direct (Gemini)</em>.</li>
-  <li>Model picker shows the current Gemini lineup (<code>gemini-2.0-flash</code>, <code>2.0-flash-lite</code>, <code>1.5-pro</code>, <code>1.5-flash</code>).</li>
+  <li>Model picker shows the current Gemini lineup (<code>gemini-3.5-flash</code>, <code>gemini-2.5-pro</code>, <code>gemini-3.1-pro</code>, <code>gemini-3-flash-preview</code>, <code>gemini-3.1-flash-lite</code>).</li>
   <li>Key field is masked by default with a show/hide eye; persists on blur.</li>
   <li>"Test connection" button sends a single <code>"Say 'ok' if you can read this."</code> message and shows the response or error inline.</li>
 </ul>
