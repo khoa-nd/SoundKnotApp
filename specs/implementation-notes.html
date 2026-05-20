@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20 (model lineup refresh).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20 (home screen video list).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -71,6 +71,7 @@
   <li><span class="badge done">4 ✓</span> Active transcript line is now bolded (no background tint)</li>
   <li><span class="badge done">5 ✓</span> Long-press contextual menu — Ask AI Tutor about selection</li>
   <li><span class="badge done">6 ✓</span> AI integration plan + dual-mode runtime + Settings screen</li>
+  <li><span class="badge done">7 ✓</span> Home screen — video library list replaces Recent sessions</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -219,6 +220,25 @@ Content-Type: application/json
   <li>Two new <code>Stack.Screen</code> entries in <code>app/_layout.tsx</code>: <code>ai-tutor</code> (modal, slide-from-bottom) and <code>ai-settings</code> (slide-from-right).</li>
   <li><code>router.push</code> calls cast the new pathnames as <code>any</code> in two places. Reason: Expo Router auto-generates typed routes at <code>.expo/types/router.d.ts</code> only when the dev server runs; <code>tsc --noEmit</code> on a fresh checkout doesn't see the new routes yet. Restarting <code>expo start</code> regenerates the types — at that point the casts can be removed.</li>
 </ul>
+
+<h2>Item 7 — Home screen video list</h2>
+<p><em>Spec:</em> "bring videos in the library screen into home screen replace for recent video / session sections."</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Replaced the <code>Knot</code>-based "Recent videos / sessions" list on <code>app/(tabs)/home.tsx</code> with the same video card pattern used on Library: 64×64 thumbnail, title, channel. Same data source (<code>videoService.list()</code>), same row layout, same tap-to-Listen navigation. The home screen now shows the user's full saved video set under a "Your videos" header, directly below the URL paste row.
+</div>
+
+<h3>Data fetch</h3>
+<ul>
+  <li>Home now fans out two requests in parallel on focus: <code>homeService.fetch()</code> (kept for the streak chip) and <code>videoService.list()</code> (the video set). Either can fail independently — a list failure leaves the streak chip working, and vice versa.</li>
+  <li>Removed the <code>recentKnots</code> mapping and the <code>Knot</code> import. The mastery-percent column and per-segment metadata are no longer surfaced on Home; Library has always lacked them too, so behaviour is now consistent across both tabs.</li>
+</ul>
+
+<h3>Tradeoffs</h3>
+<div class="tradeoff">
+  Mastery is no longer visible from Home. If we want to bring it back without breaking the new card layout, the cleanest path is a small mastery pill on the right-hand side of each card (matches the existing badge styling). Not in this delivery.
+</div>
 
 <h2>Anything else worth knowing</h2>
 <ul>

@@ -1,23 +1,32 @@
 // ── Sound Knot V2 — Home Screen
 // Paste YouTube URL → auto-navigate to Listen
-// Today card + Recent knots + tab bar: Practice | Library | Progress
+// Hero + URL input + user's video library
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/constants/theme';
 import { Typography } from '../../src/constants/Typography';
 import { Spacing, Radius } from '../../src/constants/Spacing';
-import { Knot } from '../../src/components/ui/Knot';
 import { Chip } from '../../src/components/ui/Chip';
 import { homeService } from '../../src/services/home';
 import { videoService } from '../../src/services/videos';
-import type { HomeData, PracticeSession } from '../../src/types';
+import type { HomeData, UserVideo } from '../../src/types';
 
 export default function HomeScreen() {
   const colors = useTheme();
   const [urlValue, setUrlValue] = useState('');
   const [homeData, setHomeData] = useState<HomeData | null>(null);
+  const [videos, setVideos] = useState<UserVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,13 +34,14 @@ export default function HomeScreen() {
     useCallback(() => {
       let cancelled = false;
       setLoading(true);
-      homeService
-        .fetch()
-        .then((data) => {
-          if (!cancelled) setHomeData(data);
-        })
-        .catch(() => {
-          // silently fail — show empty state
+      Promise.all([
+        homeService.fetch().catch(() => null),
+        videoService.list().catch(() => ({ videos: [] as UserVideo[] })),
+      ])
+        .then(([home, lib]) => {
+          if (cancelled) return;
+          if (home) setHomeData(home);
+          setVideos(lib?.videos ?? []);
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -55,7 +65,6 @@ export default function HomeScreen() {
       setUrlValue('');
       router.push({ pathname: '/listen', params: { videoId: vid, userVideoId: video.id } });
     } catch {
-      // fallback: navigate without persisting
       router.push({ pathname: '/listen', params: { videoId: vid } });
     } finally {
       setSubmitting(false);
@@ -63,7 +72,6 @@ export default function HomeScreen() {
   };
 
   const streak = homeData?.progress?.current_streak ?? 0;
-  const recentKnots = homeData?.recentKnots ?? [];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
@@ -124,59 +132,60 @@ export default function HomeScreen() {
           <Chip label="or use clipboard" />
         </View>
 
-        {/* Recent videos / sessions */}
+        {/* Your videos */}
+        <View style={styles.sectionHeader}>
+          <Text style={[Typography.marker, { color: colors.ink4 }]}>Your videos</Text>
+          {!loading && videos.length > 0 && (
+            <Text style={[Typography.marker, { color: colors.ink4 }]}>
+              {videos.length} video{videos.length !== 1 ? 's' : ''}
+            </Text>
+          )}
+        </View>
+
         {loading ? (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.massive }}>
             <ActivityIndicator size="small" color={colors.accent} />
           </View>
-        ) : recentKnots.length > 0 ? (
-          <View style={styles.recentSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={[Typography.marker, { color: colors.ink4 }]}>Recent videos / sessions</Text>
-              <Text style={[Typography.marker, { color: colors.ink4 }]}>
-                {recentKnots.length} session{recentKnots.length !== 1 ? 's' : ''}
-              </Text>
-            </View>
-            {recentKnots.map((item) => (
+        ) : videos.length === 0 ? (
+          <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
+            <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
+              No videos yet. Paste a YouTube URL above to add your first one.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.contentList}>
+            {videos.map((item) => (
               <TouchableOpacity
                 key={item.id}
-                style={[styles.recentItem, { borderTopColor: colors.hair }]}
+                style={[styles.contentCard, { borderTopColor: colors.hair }]}
                 onPress={() =>
                   router.push({
                     pathname: '/listen',
-                    params: {
-                      videoId: item.user_videos?.youtube_video_id ?? '',
-                      userVideoId: item.video_id,
-                    },
+                    params: { videoId: item.youtube_video_id, userVideoId: item.id },
                   })
                 }
                 activeOpacity={0.7}
               >
-                <Knot size={40} progress={item.mastery} mastery={item.mastery} pass={item.pass} subdued={0.3} />
-                <View style={styles.recentInfo}>
-                  <Text style={[Typography.bodySmall, { fontWeight: '500' }]} numberOfLines={1}>
-                    {item.user_videos?.title ?? 'Untitled'}
+                <View style={[styles.contentThumb, { backgroundColor: colors.paper2 }]}>
+                  {item.thumbnail_url ? (
+                    <Image
+                      source={{ uri: item.thumbnail_url }}
+                      style={{ width: 64, height: 64, borderRadius: Radius.md }}
+                    />
+                  ) : (
+                    <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>▶</Text>
+                  )}
+                </View>
+                <View style={styles.contentInfo}>
+                  <Text style={[Typography.bodyMedium, { fontWeight: '500' }]} numberOfLines={1}>
+                    {item.title ?? 'Untitled'}
                   </Text>
                   <Text style={[Typography.monoSmall, { color: colors.ink4, marginTop: Spacing.xs }]}>
-                    {item.segment ?? 'Seg 1'} · pass {item.pass}
+                    {item.channel ?? 'Unknown channel'}
                   </Text>
                 </View>
-                <Text style={[Typography.markerLarge, { color: colors.ink3 }]}>
-                  {Math.round(item.mastery * 100)}%
-                </Text>
               </TouchableOpacity>
             ))}
-          </View>
-        ) : (
-          <View style={styles.recentSection}>
-            <View style={styles.sectionHeader}>
-              <Text style={[Typography.marker, { color: colors.ink4 }]}>Recent videos / sessions</Text>
-            </View>
-            <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
-              <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
-                No sessions yet. Paste a YouTube URL above to start your first session.
-              </Text>
-            </View>
           </View>
         )}
 
@@ -216,28 +225,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hintRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xxxl },
-  todaySection: { marginBottom: Spacing.xxl },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'baseline',
     marginBottom: Spacing.lg,
-  },
-  todayCard: {
-    padding: Spacing.xxxl,
-    borderWidth: 1,
-    borderRadius: Radius.xxl,
-    flexDirection: 'row',
-    gap: Spacing.xxl,
-  },
-  todayInfo: { flex: 1 },
-  masteryDots: { marginTop: Spacing.lg, flexDirection: 'row', gap: Spacing.xs },
-  continueBtn: {
-    marginTop: Spacing.xl,
-    paddingVertical: Spacing.xxl,
-    borderRadius: Radius.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   emptyBox: {
     padding: Spacing.xxl,
@@ -245,13 +237,22 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: Radius.xl,
   },
-  recentSection: {},
-  recentItem: {
+  contentList: {},
+  contentCard: {
     flexDirection: 'row',
     gap: Spacing.xl,
     paddingVertical: Spacing.xl,
     borderTopWidth: 1,
     alignItems: 'center',
   },
-  recentInfo: { flex: 1 },
+  contentThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: Radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    overflow: 'hidden',
+  },
+  contentInfo: { flex: 1 },
 });
