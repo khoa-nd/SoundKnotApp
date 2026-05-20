@@ -137,7 +137,7 @@ export default function LibraryScreen() {
               onPress={() =>
                 router.push({
                   pathname: '/listen',
-                  params: { videoId: item.videoId },
+                  params: { videoId: item.videoId, start: String(item.start) },
                 })
               }
               onLongPress={() => setActionFor(item)}
@@ -219,7 +219,7 @@ export default function LibraryScreen() {
                     setActionFor(null);
                     router.push({
                       pathname: '/listen',
-                      params: { videoId: target.videoId },
+                      params: { videoId: target.videoId, start: String(target.start) },
                     });
                   }}
                   activeOpacity={0.6}

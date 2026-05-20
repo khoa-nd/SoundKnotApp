@@ -14,65 +14,97 @@ export interface TranscriptData {
   videoId: string;
 }
 
-// Sentence-ending punctuation. Matches `.`/`!`/`?` optionally followed
-// by a closing quote, paren, or bracket — e.g. `he said."`, `(yes!)`.
-const SENTENCE_END = /[.!?]["'”’)\]]?\s*$/;
-
-// Hard safety cap: only triggers for transcripts with no punctuation at all
-// (some auto-generated YouTube captions). Sentence boundaries are the primary
-// split signal; this just prevents one unbounded blob.
-const MAX_MERGE_DURATION = 90;
+const SENTENCES_PER_CHUNK = 2;
+const SENTENCE_END_RE = /[.?]["'”’)\]]?\s*$/;
+const UNPUNCTUATED_WORDS_PER_CHUNK = 30;
 
 function normalizeFragmentText(s: string): string {
   return s.replace(/\s+/g, ' ').trim();
 }
 
-/**
- * Merge raw transcript fragments into full sentences.
- *
- * Primary boundary: sentence-ending punctuation (`.`, `!`, `?`, including a
- * trailing quote/paren). The 90-second cap is a safety net for unpunctuated
- * captions; punctuated transcripts are split strictly dot-to-dot.
- */
-function mergeIntoSentences(fragments: TranscriptLine[]): TranscriptLine[] {
-  if (fragments.length === 0) return [];
+function countSentenceEndings(text: string): number {
+  let count = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c !== '.' && c !== '?') continue;
+    const prev = text[i - 1];
+    const next = text[i + 1];
+    if (prev && next && /\d/.test(prev) && /\d/.test(next)) continue;
+    count++;
+  }
+  return count;
+}
 
-  const merged: TranscriptLine[] = [];
+function hasSentencePunctuation(fragments: TranscriptLine[]): boolean {
+  for (const f of fragments) {
+    if (countSentenceEndings(f.text) > 0) return true;
+  }
+  return false;
+}
+
+function mergeBySentence(fragments: TranscriptLine[]): TranscriptLine[] {
+  const result: TranscriptLine[] = [];
   let buf: string[] = [];
   let bufStart = fragments[0].start;
   let bufEnd = fragments[0].start + fragments[0].duration;
+  let sentenceCount = 0;
 
   for (const frag of fragments) {
-    const fragEnd = frag.start + frag.duration;
     const text = normalizeFragmentText(frag.text);
     if (!text) continue;
 
     if (buf.length === 0) bufStart = frag.start;
     buf.push(text);
-    bufEnd = fragEnd;
+    bufEnd = frag.start + frag.duration;
+    sentenceCount += countSentenceEndings(text);
 
-    const endsSentence = SENTENCE_END.test(text);
-    const exceededCap = (bufEnd - bufStart) > MAX_MERGE_DURATION;
-
-    if (endsSentence || exceededCap) {
-      merged.push({
-        text: buf.join(' '),
-        start: bufStart,
-        duration: bufEnd - bufStart,
-      });
+    if (sentenceCount >= SENTENCES_PER_CHUNK && SENTENCE_END_RE.test(text)) {
+      result.push({ text: buf.join(' '), start: bufStart, duration: bufEnd - bufStart });
       buf = [];
+      sentenceCount = 0;
     }
   }
 
   if (buf.length > 0) {
-    merged.push({
-      text: buf.join(' '),
-      start: bufStart,
-      duration: bufEnd - bufStart,
-    });
+    result.push({ text: buf.join(' '), start: bufStart, duration: bufEnd - bufStart });
+  }
+  return result;
+}
+
+function mergeByWordCount(fragments: TranscriptLine[]): TranscriptLine[] {
+  const result: TranscriptLine[] = [];
+  let buf: string[] = [];
+  let bufStart = fragments[0].start;
+  let bufEnd = fragments[0].start + fragments[0].duration;
+  let wordCount = 0;
+
+  for (const frag of fragments) {
+    const text = normalizeFragmentText(frag.text);
+    if (!text) continue;
+
+    if (buf.length === 0) bufStart = frag.start;
+    buf.push(text);
+    bufEnd = frag.start + frag.duration;
+    wordCount += text.split(/\s+/).filter(Boolean).length;
+
+    if (wordCount >= UNPUNCTUATED_WORDS_PER_CHUNK) {
+      result.push({ text: buf.join(' '), start: bufStart, duration: bufEnd - bufStart });
+      buf = [];
+      wordCount = 0;
+    }
   }
 
-  return merged;
+  if (buf.length > 0) {
+    result.push({ text: buf.join(' '), start: bufStart, duration: bufEnd - bufStart });
+  }
+  return result;
+}
+
+function mergeIntoSentences(fragments: TranscriptLine[]): TranscriptLine[] {
+  if (fragments.length === 0) return [];
+  return hasSentencePunctuation(fragments)
+    ? mergeBySentence(fragments)
+    : mergeByWordCount(fragments);
 }
 
 export async function fetchTranscript(videoId: string): Promise<TranscriptData> {
@@ -94,9 +126,7 @@ export async function fetchTranscript(videoId: string): Promise<TranscriptData> 
     throw new Error('No transcript lines parsed');
   }
 
-  const lines = mergeIntoSentences(fragments);
-
-  return { lines, videoId };
+  return { lines: mergeIntoSentences(fragments), videoId };
 }
 
 // Format seconds to mm:ss or h:mm:ss

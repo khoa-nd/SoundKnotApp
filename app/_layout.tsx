@@ -76,7 +76,7 @@ export default function RootLayout() {
           name="ai-tutor"
           options={{
             animation: 'slide_from_bottom',
-            presentation: 'modal',
+            presentation: 'fullScreenModal',
           }}
         />
         <Stack.Screen

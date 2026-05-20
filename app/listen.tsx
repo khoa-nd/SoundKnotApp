@@ -29,11 +29,12 @@ import { useSavedPhrasesStore } from '../src/stores/savedPhrasesStore';
 export default function ListenScreen() {
   const colors = useTheme();
   const { width } = useWindowDimensions();
-  const { videoId, userVideoId, videoTitle, videoChannel } = useLocalSearchParams<{
+  const { videoId, userVideoId, videoTitle, videoChannel, start } = useLocalSearchParams<{
     videoId?: string;
     userVideoId?: string;
     videoTitle?: string;
     videoChannel?: string;
+    start?: string;
   }>();
   const playerRef = useRef<YoutubePlayerHandle>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -51,15 +52,16 @@ export default function ListenScreen() {
   const [transcriptHidden, setTranscriptHidden] = useState(false);
   const [currentLineIdx, setCurrentLineIdx] = useState(-1);
 
-  // Auto-scroll state — track measured Y positions and user interaction
   const lineYPositions = useRef<Record<number, number>>({});
   const scrollViewHeight = useRef(0);
-  const userIsScrolling = useRef(false);
-  const userScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastAutoScrollIdx = useRef(-1);
 
   // Long-press contextual menu
   const [menuLineIdx, setMenuLineIdx] = useState<number | null>(null);
+
+  // Deep-link seek (from Library): only fire once per param value
+  const startSeconds = start ? Number(start) : NaN;
+  const seekedForStart = useRef<number | null>(null);
+  const pendingScrollIdx = useRef<number | null>(null);
 
   // Bookmarks
   const { hydrated: phrasesHydrated, load: loadPhrases, hasPhrase, add: addPhrase, removeByLine } =
@@ -97,10 +99,38 @@ export default function ListenScreen() {
     if (!phrasesHydrated) loadPhrases();
   }, [phrasesHydrated, loadPhrases]);
 
-  // ── Poll current time for transcript highlighting ──
+  useEffect(() => {
+    if (!ready) return;
+    if (!Number.isFinite(startSeconds)) return;
+    if (seekedForStart.current === startSeconds) return;
+    seekedForStart.current = startSeconds;
+    (async () => {
+      try {
+        await playerRef.current?.seekTo(startSeconds);
+        setCurrentTime(startSeconds);
+      } catch {
+        // ignore
+      }
+    })();
+  }, [ready, startSeconds]);
 
   useEffect(() => {
-    if (!ready || !playing) return;
+    if (!Number.isFinite(startSeconds) || transcript.length === 0) return;
+    const idx = findCurrentLineIndex(transcript, startSeconds);
+    if (idx >= 0) {
+      setCurrentLineIdx(idx);
+      pendingScrollIdx.current = idx;
+      const y = lineYPositions.current[idx];
+      if (y != null) {
+        const target = Math.max(0, y - scrollViewHeight.current * 0.33);
+        scrollRef.current?.scrollTo({ y: target, animated: false });
+        pendingScrollIdx.current = null;
+      }
+    }
+  }, [startSeconds, transcript]);
+
+  useEffect(() => {
+    if (!ready) return;
 
     const interval = setInterval(async () => {
       try {
@@ -117,40 +147,15 @@ export default function ListenScreen() {
     }, 500);
 
     return () => clearInterval(interval);
-  }, [ready, playing, transcript]);
-
-  // ── Auto-scroll when currentLineIdx changes ──
+  }, [ready, transcript]);
 
   useEffect(() => {
-    if (
-      currentLineIdx < 0 ||
-      userIsScrolling.current ||
-      currentLineIdx === lastAutoScrollIdx.current
-    ) return;
-
+    if (currentLineIdx < 0) return;
     const y = lineYPositions.current[currentLineIdx];
-    if (y == null) return;
-
-    lastAutoScrollIdx.current = currentLineIdx;
-    // Scroll so the active line is ~1/3 from the top of the visible area
+    if (y == null || scrollViewHeight.current === 0) return;
     const target = Math.max(0, y - scrollViewHeight.current * 0.33);
     scrollRef.current?.scrollTo({ y: target, animated: true });
   }, [currentLineIdx]);
-
-  // ── User scroll detection ──
-
-  const onScrollBeginDrag = useCallback(() => {
-    userIsScrolling.current = true;
-    if (userScrollTimer.current) clearTimeout(userScrollTimer.current);
-  }, []);
-
-  const onScrollEndDrag = useCallback(() => {
-    // Resume auto-scroll after 4 seconds of no user interaction
-    if (userScrollTimer.current) clearTimeout(userScrollTimer.current);
-    userScrollTimer.current = setTimeout(() => {
-      userIsScrolling.current = false;
-    }, 4000);
-  }, []);
 
   const onScrollViewLayout = useCallback((e: LayoutChangeEvent) => {
     scrollViewHeight.current = e.nativeEvent.layout.height;
@@ -158,6 +163,11 @@ export default function ListenScreen() {
 
   const onLineLayout = useCallback((index: number, e: LayoutChangeEvent) => {
     lineYPositions.current[index] = e.nativeEvent.layout.y;
+    if (pendingScrollIdx.current === index && scrollViewHeight.current > 0) {
+      const target = Math.max(0, e.nativeEvent.layout.y - scrollViewHeight.current * 0.33);
+      scrollRef.current?.scrollTo({ y: target, animated: false });
+      pendingScrollIdx.current = null;
+    }
   }, []);
 
   // ── Player callbacks ──
@@ -253,30 +263,26 @@ export default function ListenScreen() {
       </View>
 
       {/* ── Transcript ── */}
+      <View style={styles.transcriptHeaderFixed}>
+        <Text style={[Typography.marker, { color: colors.ink4 }]}>Transcript</Text>
+        <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>
+          {transcriptHidden
+            ? 'HIDDEN'
+            : transcriptLoading
+              ? 'FETCHING…'
+              : transcriptError
+                ? 'ERROR'
+                : `${transcript.length} LINES`}
+        </Text>
+      </View>
+      <View style={[styles.transcriptBox, { borderTopColor: colors.hair, backgroundColor: colors.paper }]}>
       <ScrollView
         ref={scrollRef}
         style={styles.transcriptScroll}
-        contentContainerStyle={{ padding: Spacing.screen, paddingTop: Spacing.xxxl }}
+        contentContainerStyle={{ padding: Spacing.screen, paddingTop: Spacing.xl }}
         showsVerticalScrollIndicator={false}
         onLayout={onScrollViewLayout}
-        onScrollBeginDrag={onScrollBeginDrag}
-        onScrollEndDrag={onScrollEndDrag}
-        onMomentumScrollEnd={onScrollEndDrag}
-        scrollEventThrottle={16}
       >
-        <View style={styles.transcriptHeader}>
-          <Text style={[Typography.marker, { color: colors.ink4 }]}>Transcript</Text>
-          <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>
-            {transcriptHidden
-              ? 'HIDDEN'
-              : transcriptLoading
-                ? 'FETCHING…'
-                : transcriptError
-                  ? 'ERROR'
-                  : `${transcript.length} LINES`}
-          </Text>
-        </View>
-
         {transcriptHidden ? (
           <View style={[styles.transcriptHiddenBox, { borderColor: colors.hair }]}>
             <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
@@ -353,9 +359,9 @@ export default function ListenScreen() {
                   style={[
                     Typography.bodyLarge,
                     {
-                      color: isCurrent ? colors.ink : colors.ink2,
+                      color: isCurrent ? colors.ink : colors.ink4,
                       flex: 1,
-                      fontWeight: isCurrent ? '700' : '400',
+                      fontWeight: isCurrent ? '900' : '400',
                     },
                   ]}
                 >
@@ -366,6 +372,7 @@ export default function ListenScreen() {
           })
         )}
       </ScrollView>
+      </View>
 
       {/* Bottom actions */}
       <View style={[styles.bottomBar, { borderTopColor: colors.hair, backgroundColor: colors.paper }]}>
@@ -479,6 +486,19 @@ const styles = StyleSheet.create({
   },
 
   // ── Transcript ──
+  transcriptHeaderFixed: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingHorizontal: Spacing.screen,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  transcriptBox: {
+    flex: 1,
+    borderTopWidth: 1,
+    overflow: 'hidden',
+  },
   transcriptScroll: { flex: 1 },
   transcriptLoading: {
     alignItems: 'center',

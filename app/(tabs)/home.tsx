@@ -11,9 +11,11 @@ import {
   StyleSheet,
   ActivityIndicator,
   Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/constants/theme';
 import { Typography } from '../../src/constants/Typography';
 import { Spacing, Radius } from '../../src/constants/Spacing';
@@ -69,6 +71,29 @@ export default function HomeScreen() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const confirmRemove = (item: UserVideo) => {
+    Alert.alert(
+      'Remove video?',
+      `"${item.title ?? 'Untitled'}" will be removed from your library.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            const prev = videos;
+            setVideos(prev.filter((v) => v.id !== item.id));
+            try {
+              await videoService.remove(item.id);
+            } catch {
+              setVideos(prev);
+            }
+          },
+        },
+      ],
+    );
   };
 
   const streak = homeData?.progress?.current_streak ?? 0;
@@ -184,6 +209,14 @@ export default function HomeScreen() {
                     {item.channel ?? 'Unknown channel'}
                   </Text>
                 </View>
+                <TouchableOpacity
+                  onPress={() => confirmRemove(item)}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={styles.contentRemove}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="close" size={18} color={colors.ink4} />
+                </TouchableOpacity>
               </TouchableOpacity>
             ))}
           </View>
@@ -255,4 +288,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   contentInfo: { flex: 1 },
+  contentRemove: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: Spacing.sm,
+  },
 });

@@ -18,4 +18,8 @@ export const videoService = {
   async getSessions(videoId: string): Promise<{ sessions: PracticeSession[] }> {
     return apiClient.get<{ sessions: PracticeSession[] }>(`/videos/${videoId}/sessions`);
   },
+
+  async remove(videoId: string): Promise<void> {
+    await apiClient.delete<unknown>(`/videos/${videoId}`);
+  },
 };

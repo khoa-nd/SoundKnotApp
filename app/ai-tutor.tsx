@@ -194,37 +194,37 @@ export default function AiTutorScreen() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.headerBtn}>
-          <Ionicons name="chevron-back" size={22} color={colors.ink} />
-          <Text style={[Typography.headingSmall, { color: colors.ink }]}>Back</Text>
-        </TouchableOpacity>
-        <Text style={[Typography.monoSmall, { color: colors.ink3 }]}>AI TUTOR</Text>
-        <TouchableOpacity onPress={() => router.push('/ai-settings' as any)} activeOpacity={0.7} style={styles.headerBtn}>
-          <Ionicons name="settings-outline" size={20} color={colors.ink2} />
-        </TouchableOpacity>
-      </View>
-
-      {params.selection && (
-        <View style={[styles.selectionBanner, { backgroundColor: colors.accentSoft, borderColor: colors.hair }]}>
-          <Text style={[Typography.marker, { color: colors.accentInk }]}>SELECTED</Text>
-          <Text style={[Typography.bodySmall, { color: colors.ink, marginTop: Spacing.xs }]} numberOfLines={3}>
-            "{params.selection}"
-          </Text>
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: colors.paper }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
+    >
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.headerBtn}>
+            <Ionicons name="chevron-back" size={22} color={colors.ink} />
+            <Text style={[Typography.headingSmall, { color: colors.ink }]}>Back</Text>
+          </TouchableOpacity>
+          <Text style={[Typography.monoSmall, { color: colors.ink3 }]}>AI TUTOR</Text>
+          <TouchableOpacity onPress={() => router.push('/ai-settings' as any)} activeOpacity={0.7} style={styles.headerBtn}>
+            <Ionicons name="settings-outline" size={20} color={colors.ink2} />
+          </TouchableOpacity>
         </View>
-      )}
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
-        keyboardVerticalOffset={8}
-      >
+        {params.selection && (
+          <View style={[styles.selectionBanner, { backgroundColor: colors.accentSoft, borderColor: colors.hair }]}>
+            <Text style={[Typography.marker, { color: colors.accentInk }]}>SELECTED</Text>
+            <Text style={[Typography.bodySmall, { color: colors.ink, marginTop: Spacing.xs }]} numberOfLines={3}>
+              "{params.selection}"
+            </Text>
+          </View>
+        )}
+
         <ScrollView
           ref={scrollRef}
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {messages.length === 0 && (
             <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
@@ -300,8 +300,8 @@ export default function AiTutorScreen() {
             </View>
           )}
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
