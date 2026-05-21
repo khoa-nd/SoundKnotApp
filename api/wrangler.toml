@@ -1,0 +1,16 @@
+name = "soundknot-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Non-secret env vars go here.
+# Optional AI tuning (override defaults in src/routes/ai.ts):
+#   AI_RATE_LIMIT_PER_USER_PER_MINUTE = "20"
+#   AI_MAX_AUDIO_BYTES = "2097152"
+
+# Secrets are set via: wrangler secret put <NAME>
+# Required secrets:
+#   SUPABASE_URL
+#   SUPABASE_SERVICE_ROLE_KEY
+#   SUPABASE_JWT_SECRET
+#   GEMINI_API_KEY
