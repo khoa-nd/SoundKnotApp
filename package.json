@@ -1,0 +1,16 @@
+{
+  "name": "soundknot",
+  "private": true,
+  "workspaces": [
+    "app",
+    "api",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:app": "npm run start -w app",
+    "dev:api": "npm run dev -w api",
+    "deploy:api": "npm run deploy -w api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  }
+}
