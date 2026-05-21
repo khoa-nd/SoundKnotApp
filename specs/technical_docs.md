@@ -63,13 +63,15 @@ SoundKnotApp/
 │   ├── _layout.tsx               # Root Stack navigator + font loading + splash
 │   ├── index.tsx                 # Entry redirect with auth check
 │   ├── login.tsx                 # Login / register screen
-│   ├── listen.tsx                # Listen screen (YouTube + auto-scroll transcript)
+│   ├── listen.tsx                # Listen screen (YouTube + clipped transcript box + bookmarks)
 │   ├── dictation.tsx             # Dictation screen (recall + check)
 │   ├── finished.tsx              # Session complete screen (saves session to API)
+│   ├── ai-tutor.tsx              # AI tutor chat (fullScreenModal, KAV-wrapped)
+│   ├── ai-settings.tsx           # AI provider/model picker
 │   └── (tabs)/                   # Tab navigator group
-│       ├── _layout.tsx           # 3-tab bottom nav (Home | Library | Profile)
-│       ├── home.tsx              # URL paste + recent sessions
-│       ├── library.tsx           # User's saved videos
+│       ├── _layout.tsx           # Tab bottom nav (Home | Library | Profile)
+│       ├── home.tsx              # URL paste + library list with per-row delete (X)
+│       ├── library.tsx           # Phrase + Vocabulary tabs (saved bookmarks)
 │       └── progress.tsx          # Stats dashboard (streak + sessions + mastery)
 ├── src/
 │   ├── components/
@@ -272,7 +274,9 @@ Root Stack (app/_layout.tsx)
 │   └── /progress              → progress.tsx (titled "Profile")
 ├── /listen                    → listen.tsx
 ├── /dictation                 → dictation.tsx
-└── /finished                  → finished.tsx (modal)
+├── /finished                  → finished.tsx (modal, slide_from_bottom)
+├── /ai-tutor                  → ai-tutor.tsx (fullScreenModal, slide_from_bottom)
+└── /ai-settings               → ai-settings.tsx (slide_from_right)
 ```
 
 ### 6.2 User Flow
@@ -289,11 +293,15 @@ Home (Home tab)
   └── Tap recent knot → /listen
       ↓
 Listen Screen
-  ├── YouTube player (native or web variant)
-  ├── Auto-scrolling transcript (live highlight follows playback)
+  ├── YouTube player (clipped rounded box)
+  ├── Fixed transcript header ("Transcript" + N LINES) above a border
+  ├── Scrolling transcript inside a clipped box (no bleed into video)
+  │   ├── Active sentence rendered ink + fontWeight '900'
+  │   ├── Auto-scrolls to keep active line ~1/3 from the top
   │   ├── Tap any line → seek to timestamp
-  │   ├── Manual scroll → auto-scroll pauses for 4 seconds
+  │   ├── Long-press → bookmark / saved-phrase menu
   │   └── Eye icon → hide/reveal transcript
+  ├── [Ask AI Tutor] → /ai-tutor (full-screen modal)
   ├── [Close] → back to Home
   └── [Recall →] → /dictation
       ↓
@@ -491,7 +499,7 @@ Singleton `apiClient` with:
 |---------|-----------|---------|
 | `authService` (`auth.ts`) | `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me` | `authStore`, `userStore`, `progress.tsx` |
 | `homeService` (`home.ts`) | `GET /home` → `HomeData` | `home.tsx`, `progress.tsx` |
-| `videoService` (`videos.ts`) | `GET /videos`, `POST /videos`, `GET /videos/:id/sessions` | `home.tsx` (add), `library.tsx` (list) |
+| `videoService` (`videos.ts`) | `GET /videos`, `POST /videos`, `GET /videos/:id/sessions`, `DELETE /videos/:id` | `home.tsx` (add + remove), `library.tsx` (list) |
 | `sessionService` (`sessions.ts`) | `POST /sessions` | `sessionStore.saveSession` → `finished.tsx` |
 | `transcript` (`transcript.ts`) | YouTube InnerTube via `youtube-transcript` | `listen.tsx` |
 
@@ -552,22 +560,52 @@ return m ? m[1] : null;
 ```
 On the home screen, a successful match calls `videoService.add({ youtube_video_id })` then navigates to `/listen` with both `videoId` and the returned `userVideoId`.
 
-### 10.5 Transcript Sentence Merging
+### 10.5 Transcript Sentence Merging (`src/services/transcript.ts`)
 
-Joins YouTube's ~2-3 second fragments into readable sentences:
-1. Buffer fragments, track `bufStart` / `bufEnd`
-2. Flush when total duration exceeds `MAX_MERGE_DURATION` (15s) or when text ends with `.`, `!`, `?`
-3. Reduces ~200 raw fragments to ~40-60 sentence lines
+YouTube returns transcripts as ~2-3 second fragments. The merger groups them into readable chunks using a two-strategy approach:
 
-### 10.6 Transcript Auto-Scroll (`app/listen.tsx`)
+**Strategy A — Sentence-based (when punctuation exists)**
+1. `hasSentencePunctuation()` scans all fragments for `.` or `?`
+2. If found, `mergeBySentence()` accumulates fragments and flushes when both:
+   - `sentenceCount >= SENTENCES_PER_CHUNK` (default `2`)
+   - The current fragment ends with a sentence terminator (`SENTENCE_END_RE = /[.?]["'”’)\]]?\s*$/`)
+3. `countSentenceEndings()` skips decimals — a `.` flanked by digits on both sides (e.g. `3.14`) does not count as a sentence end
 
-- 500ms `setInterval` polls `playerRef.current.getCurrentTime()` while playing
-- Each line measures Y via `onLayout` → stored in `lineYPositions` ref
-- On `currentLineIdx` change, `useEffect` scrolls so the active line sits ~1/3 from the top
-- `onScrollBeginDrag` sets `userIsScrolling = true`; resumes 4s after `onScrollEndDrag` / `onMomentumScrollEnd`
+**Strategy B — Word-count fallback (auto-generated captions)**
+- Auto-generated YouTube captions have no punctuation. When `hasSentencePunctuation()` returns false, `mergeByWordCount()` flushes every `UNPUNCTUATED_WORDS_PER_CHUNK = 30` words.
+- This prevents the entire transcript from collapsing into a single multi-thousand-word line (the previously-observed `kkwHhNitf8A` failure mode).
+
+Each merged line preserves `start` from the first fragment in the buffer and `duration = bufEnd - bufStart`.
+
+### 10.6 Active-Line Highlight + Auto-Scroll (`app/listen.tsx`)
+
+- 500ms `setInterval` polls `playerRef.current.getCurrentTime()` while the player is `ready` (not gated on `playing`, so the highlight keeps following even if YouTube state callbacks misfire)
+- `findCurrentLineIndex()` does a reverse linear scan to locate the last line with `start <= currentTime`
+- Active line styling: `color: colors.ink` and `fontWeight: '900'` (heavier than `bold`/`700` for clearer visual emphasis); inactive lines render as `colors.ink4` with `fontWeight: '400'`
+- Each line measures its Y via `onLayout` and writes into a `lineYPositions` ref keyed by index
+- A `useEffect` on `currentLineIdx` change scrolls so the active line sits ~1/3 from the top: `target = max(0, lineY - scrollViewHeight * 0.33)`
+- The transcript ScrollView is wrapped in a `transcriptBox` View with `overflow: 'hidden'` and a top hairline border, so scrolled content is clipped at a clear boundary below the video player
+- The `Transcript` label and `N LINES` counter render in a fixed `transcriptHeaderFixed` row above the boundary so they remain visible while the transcript scrolls
 - **Anti-pattern avoided**: never use a ScrollView ref callback for imperative scroll — it fires every render. Always use `useRef` + `useEffect` keyed on the tracked index.
 
-### 10.7 Session Persistence (`app/finished.tsx:30`)
+### 10.7 Home Library Item Removal (`app/(tabs)/home.tsx`)
+
+Each video row in the Home library has an X icon (Ionicons `close`). Tapping it shows an `Alert.alert` confirm sheet, then performs an optimistic update:
+
+1. Snapshot current `videos` array
+2. Filter the doomed item out and `setVideos()` immediately for instant feedback
+3. `await videoService.remove(id)` (DELETE `/videos/:id`)
+4. On error, restore the snapshot — the item reappears in place
+
+### 10.8 AI Tutor Keyboard Handling (`app/ai-tutor.tsx` + `app/_layout.tsx`)
+
+iOS modal presentation interacts poorly with `KeyboardAvoidingView`: in the default `presentation: 'modal'` (page sheet) mode, the keyboard offset is measured against the sheet's frame rather than the screen, so the input docks too low and gets covered. Fix:
+
+- `app/_layout.tsx` declares the route with `presentation: 'fullScreenModal'` so it covers the screen
+- `app/ai-tutor.tsx` puts `KeyboardAvoidingView` (`behavior="padding"` on iOS, `"height"` on Android) as the **outermost** wrapper above `SafeAreaView`
+- The chat ScrollView sets `keyboardShouldPersistTaps="handled"` so taps on suggestion chips don't dismiss the keyboard
+
+### 10.9 Session Persistence (`app/finished.tsx:30`)
 
 ```typescript
 const saved = useRef(false);
@@ -765,4 +803,4 @@ Radius.pill         → 26px fully rounded
 
 ---
 
-*Last updated: May 2026 · Sound Knot V2 · Expo SDK 54 · iOS / Android / Web*
+*Last updated: 2026-05-20 · Sound Knot V2 · Expo SDK 54 · iOS / Android / Web*
