@@ -1,7 +1,7 @@
 // ── Sound Knot V2 — Home Screen
 // Paste YouTube URL → auto-navigate to Listen
 // Hero + URL input + user's video library
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,10 +13,12 @@ import {
   Image,
   Alert,
   Modal,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../src/constants/theme';
 import { Typography } from '../../src/constants/Typography';
 import { Spacing, Radius } from '../../src/constants/Spacing';
@@ -34,9 +36,19 @@ export default function HomeScreen() {
   const [videos, setVideos] = useState<UserVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [removingVideoIds, setRemovingVideoIds] = useState<Record<string, boolean>>({});
+  const [copiedMessage, setCopiedMessage] = useState<string | null>(null);
   const [preprocessSteps, setPreprocessSteps] = useState<PreprocessStep[]>(INITIAL_PREPROCESS_STEPS);
   const [preprocessError, setPreprocessError] = useState<string | null>(null);
   const setPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.setTranscript);
+  const copiedOpacity = useRef(new Animated.Value(0)).current;
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -96,15 +108,52 @@ export default function HomeScreen() {
           onPress: async () => {
             const prev = videos;
             setVideos(prev.filter((v) => v.id !== item.id));
+            setRemovingVideoIds((ids) => ({ ...ids, [item.id]: true }));
             try {
               await videoService.remove(item.id);
-            } catch {
-              setVideos(prev);
+            } catch (err: any) {
+              const message = err?.message ?? 'Delete request failed.';
+              if (!message.includes('404') && !message.toLowerCase().includes('not found')) {
+                setVideos(prev);
+                Alert.alert('Could not remove video', message);
+              }
+            } finally {
+              setRemovingVideoIds((ids) => {
+                const next = { ...ids };
+                delete next[item.id];
+                return next;
+              });
             }
           },
         },
       ],
     );
+  };
+
+  const copyVideoUrl = async (item: UserVideo) => {
+    const url = `https://www.youtube.com/watch?v=${item.youtube_video_id}`;
+    await Clipboard.setStringAsync(url);
+    showCopiedNotice(`Copied ${url}`);
+  };
+
+  const showCopiedNotice = (message: string) => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    setCopiedMessage(message);
+    copiedOpacity.setValue(0);
+    Animated.timing(copiedOpacity, {
+      toValue: 1,
+      duration: 160,
+      useNativeDriver: true,
+    }).start();
+    copiedTimer.current = setTimeout(() => {
+      Animated.timing(copiedOpacity, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setCopiedMessage(null);
+      });
+    }, 1800);
   };
 
   const streak = homeData?.progress?.current_streak ?? 0;
@@ -220,14 +269,39 @@ export default function HomeScreen() {
                     {item.channel ?? 'Unknown channel'}
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => confirmRemove(item)}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={styles.contentRemove}
-                  activeOpacity={0.6}
-                >
-                  <Ionicons name="close" size={18} color={colors.ink4} />
-                </TouchableOpacity>
+                <View style={styles.contentActions}>
+                  <TouchableOpacity
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      copyVideoUrl(item);
+                    }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={styles.contentActionBtn}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy video URL"
+                  >
+                    <Ionicons name="copy-outline" size={18} color={colors.ink4} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      confirmRemove(item);
+                    }}
+                    disabled={!!removingVideoIds[item.id]}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    style={styles.contentActionBtn}
+                    activeOpacity={0.6}
+                    accessibilityRole="button"
+                    accessibilityLabel="Delete video"
+                  >
+                    {removingVideoIds[item.id] ? (
+                      <ActivityIndicator size="small" color={colors.ink4} />
+                    ) : (
+                      <Ionicons name="close" size={18} color={colors.ink4} />
+                    )}
+                  </TouchableOpacity>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -277,6 +351,13 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
+      {!!copiedMessage && (
+        <Animated.View style={[styles.toast, { backgroundColor: colors.ink, opacity: copiedOpacity }]}>
+          <Text style={[Typography.monoSmall, { color: colors.paper }]} numberOfLines={2}>
+            {copiedMessage}
+          </Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
@@ -341,12 +422,17 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   contentInfo: { flex: 1 },
-  contentRemove: {
+  contentActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginLeft: Spacing.sm,
+  },
+  contentActionBtn: {
     width: 32,
     height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: Spacing.sm,
   },
   modalBackdrop: {
     flex: 1,
@@ -382,5 +468,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.xl,
+  },
+  toast: {
+    position: 'absolute',
+    left: Spacing.screen,
+    right: Spacing.screen,
+    bottom: Spacing.xxxl,
+    borderRadius: Radius.xl,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
   },
 });
