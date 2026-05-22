@@ -224,6 +224,7 @@ export default function AiTutorScreen() {
     const saved = await addSaved({
       text,
       kind,
+      source: 'ai',
       videoId: params.videoId ?? 'ai-tutor',
       videoTitle: params.videoTitle,
       videoChannel: params.videoChannel,

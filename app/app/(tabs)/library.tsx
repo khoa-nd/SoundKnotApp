@@ -133,13 +133,14 @@ export default function LibraryScreen() {
             <TouchableOpacity
               key={item.id}
               style={[styles.row, { borderTopColor: colors.hair }]}
-              activeOpacity={0.7}
-              onPress={() =>
+              activeOpacity={isAiCurated(item) ? 1 : 0.7}
+              onPress={() => {
+                if (isAiCurated(item)) return;
                 router.push({
                   pathname: '/listen',
                   params: { videoId: item.videoId, start: String(item.start) },
-                })
-              }
+                });
+              }}
               onLongPress={() => setActionFor(item)}
               delayLongPress={350}
             >
@@ -148,7 +149,11 @@ export default function LibraryScreen() {
                   {item.text}
                 </Text>
                 <View style={styles.metaRow}>
-                  <Ionicons name="play-circle-outline" size={14} color={colors.ink4} />
+                  <Ionicons
+                    name={isAiCurated(item) ? 'sparkles-outline' : 'play-circle-outline'}
+                    size={14}
+                    color={colors.ink4}
+                  />
                   <Text
                     style={[
                       Typography.monoSmall,
@@ -156,7 +161,9 @@ export default function LibraryScreen() {
                     ]}
                     numberOfLines={1}
                   >
-                    {formatTimestamp(item.start)} · {item.videoTitle ?? 'Saved video'}
+                    {isAiCurated(item)
+                      ? `AI-curated${item.videoTitle ? ` · ${item.videoTitle}` : ''}`
+                      : `${formatTimestamp(item.start)} · ${item.videoTitle ?? 'Saved video'}`}
                   </Text>
                 </View>
               </View>
@@ -192,7 +199,7 @@ export default function LibraryScreen() {
                   style={[Typography.bodyMedium, { color: colors.ink, marginTop: Spacing.sm }]}
                   numberOfLines={3}
                 >
-                  "{actionFor.text}"
+                  &ldquo;{actionFor.text}&rdquo;
                 </Text>
                 <View style={[styles.menuDivider, { backgroundColor: colors.hair }]} />
                 <TouchableOpacity
@@ -212,25 +219,27 @@ export default function LibraryScreen() {
                     Move to {otherKind === 'phrase' ? 'Phrase' : 'Vocabulary'}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => {
-                    const target = actionFor;
-                    setActionFor(null);
-                    router.push({
-                      pathname: '/listen',
-                      params: { videoId: target.videoId, start: String(target.start) },
-                    });
-                  }}
-                  activeOpacity={0.6}
-                >
-                  <Ionicons name="play-circle-outline" size={18} color={colors.ink2} />
-                  <Text
-                    style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}
+                {!isAiCurated(actionFor) && (
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      const target = actionFor;
+                      setActionFor(null);
+                      router.push({
+                        pathname: '/listen',
+                        params: { videoId: target.videoId, start: String(target.start) },
+                      });
+                    }}
+                    activeOpacity={0.6}
                   >
-                    Open video
-                  </Text>
-                </TouchableOpacity>
+                    <Ionicons name="play-circle-outline" size={18} color={colors.ink2} />
+                    <Text
+                      style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}
+                    >
+                      Open video
+                    </Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.menuItem}
                   onPress={async () => {
@@ -272,6 +281,10 @@ export default function LibraryScreen() {
       </Modal>
     </SafeAreaView>
   );
+}
+
+function isAiCurated(item: SavedPhrase): boolean {
+  return item.source === 'ai' || item.start > 86400;
 }
 
 const styles = StyleSheet.create({

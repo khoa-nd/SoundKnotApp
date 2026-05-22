@@ -14,6 +14,7 @@ export interface SavedPhrase {
   id: string;
   text: string;
   kind: SavedPhraseKind;
+  source?: 'video' | 'ai';
   videoId: string;
   videoTitle?: string;
   videoChannel?: string;
@@ -71,6 +72,7 @@ export const useSavedPhrasesStore = create<SavedPhrasesState>((set, get) => ({
       kind: entry.kind ?? 'phrase',
       createdAt: Date.now(),
       text: entry.text,
+      source: entry.source ?? 'video',
       videoId: entry.videoId,
       videoTitle: entry.videoTitle,
       videoChannel: entry.videoChannel,
