@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-22 (sentence-first transcript algorithm + AI Tutor updates).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-22 (AI Tutor generated saves, Home video actions, Library revamp).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -73,6 +73,7 @@
   <li><span class="badge done">6 ✓</span> AI integration plan + dual-mode runtime + Settings screen</li>
   <li><span class="badge done">7 ✓</span> Home screen — video library list replaces Recent sessions</li>
   <li><span class="badge done">8 ✓</span> Bookmark per transcript line + Library Phrase/Vocabulary tabs</li>
+  <li><span class="badge done">9 ✓</span> AI Tutor generated vocabulary/phrases + Library card UX + Home copy/delete actions</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -252,22 +253,40 @@ Content-Type: application/json
   Mastery is no longer visible from Home. If we want to bring it back without breaking the new card layout, the cleanest path is a small mastery pill on the right-hand side of each card (matches the existing badge styling). Not in this delivery.
 </div>
 
+<h3>Follow-up decisions — delete + copy actions</h3>
+<div class="decision">
+  Home video rows now expose two inline icon actions: <strong>copy URL</strong> and <strong>delete</strong>. Copy uses <code>expo-clipboard</code> and shows a small fading bottom toast instead of a blocking <code>Alert.alert</code>. Delete remains destructive-confirmed, calls <code>videoService.remove(id)</code>, and performs an optimistic UI removal.
+</div>
+<ul>
+  <li><code>videoService.remove(id)</code> calls <code>DELETE /videos/:id</code>, so deletion is DB-backed rather than local-only.</li>
+  <li>The backend route checks ownership by <code>user_id</code>, deletes related <code>practice_sessions</code> first, then deletes <code>user_videos</code>.</li>
+  <li>A <code>404</code> / not-found delete response is treated as already removed from the DB, so the row stays removed instead of rolling back. Other failures restore the previous list and show an error alert.</li>
+  <li>Home video data is fetched from the API on focus and is not persisted in app local storage. The local persisted stores are auth/session, AI settings, preprocessed transcripts, and saved phrases.</li>
+</ul>
+
 <h2>Item 8 — Bookmarks per transcript line + Library Phrase/Vocabulary tabs</h2>
 <p><em>Spec:</em> "add bookmark icon under timestamp along the transcript for each sentence. when user touch on bookmark, save this sentence into library screen. In library screen, there are two vertical tabs : Phrase and Vocabulary… clean up all videos listing in the Library screen."</p>
 
 <h3>Decisions</h3>
 <div class="decision">
-  New persistent store at <code>src/stores/savedPhrasesStore.ts</code> (Zustand + AsyncStorage, mirrors the <code>aiSettingsStore</code> shape). Each saved entry is <code>{ id, text, kind: 'phrase' | 'vocabulary', videoId, videoTitle, videoChannel, start, createdAt }</code>, persisted under <code>soundknot_saved_phrases</code>. Lookups use a composite key of <code>videoId@startMs</code> so toggling on the transcript is O(n) but stable across re-renders.
+  New persistent store at <code>src/stores/savedPhrasesStore.ts</code> (Zustand + AsyncStorage, mirrors the <code>aiSettingsStore</code> shape). Each saved entry is <code>{ id, text, kind: 'phrase' | 'vocabulary', source?: 'video' | 'ai', videoId, videoTitle, videoChannel, start, createdAt }</code>, persisted under <code>soundknot_saved_phrases</code>. Lookups use a composite key of <code>videoId@startMs</code> so toggling on the transcript is O(n) but stable across re-renders.
 </div>
 <ul>
   <li><strong>Listen screen:</strong> the timestamp column became a small "gutter" — timestamp on top, bookmark <code>TouchableOpacity</code> directly under it. Tapping the bookmark calls <code>addPhrase</code> / <code>removeByLine</code> and toggles between <code>bookmark-outline</code> and the filled <code>bookmark</code> Ionicon (accent orange when saved). The inner Touchable swallows the press, so the row's <code>onPress={() =&gt; seekTo(line.start)}</code> still fires for the rest of the row.</li>
-  <li><strong>Default kind = <code>phrase</code>.</strong> Promotion to <code>vocabulary</code> happens from the Library row (long-press or kebab → "Move to Vocabulary"). Keeping the bookmark gesture single-tap means there's nothing to learn for the common case.</li>
+  <li><strong>Default kind = <code>phrase</code>.</strong> Transcript bookmarks save as phrases. AI Tutor generated keyword lists save as vocabulary; generated grammar/phrase lists save as phrases.</li>
 </ul>
 
 <h3>Library rewrite</h3>
 <div class="decision">
-  Old <code>app/(tabs)/library.tsx</code> (saved videos list + search) replaced wholesale. New screen has a two-segment pill tab bar (<strong>Phrase</strong> / <strong>Vocabulary</strong>) with per-tab counts, then a list of saved entries showing the sentence, source video title, and timestamp. Tapping a row reopens the source video in Listen; long-press / kebab opens an action sheet with <strong>Move to other tab</strong>, <strong>Open video</strong>, and <strong>Delete</strong>.
+  Old <code>app/(tabs)/library.tsx</code> (saved videos list + search) replaced wholesale. New screen has a two-segment pill tab bar (<strong>Phrases</strong> / <strong>Vocabulary</strong>) with per-tab counts, search, time filters (<strong>All</strong>, <strong>Yesterday</strong>, <strong>Last 7 days</strong>), and compact cards for saved entries. Cards show source badges, parsed title/explanation/example lines, source metadata, and inline actions. Tapping any card opens a detail bottom sheet with full content and contextual actions.
 </div>
+<ul>
+  <li>AI Tutor generated saves are marked <code>source: 'ai'</code>. Library treats them as <strong>AI-curated</strong>, disables video navigation, and hides the <strong>Open video</strong> action. Older AI saves from before the source field are detected by their large synthetic <code>start</code> value.</li>
+  <li>Transcript-saved items stay source-linked. Their cards and detail sheet can open <code>/listen</code> at the saved timestamp.</li>
+  <li>Generated AI list items are parsed by the <code>"title - explanation Transcript/Example: ..."</code> pattern. The title renders bold, explanation renders on the next line, and example/transcript renders on its own italic line.</li>
+  <li>The previous <strong>Move to Phrase/Vocabulary</strong> action was removed from both cards and the detail menu to reduce cognitive load.</li>
+  <li>Copy/delete feedback uses a small fading bottom toast, not a blocking confirmation alert. Delete remains available from cards and detail sheet.</li>
+</ul>
 
 <h3>Tradeoffs</h3>
 <div class="tradeoff">
@@ -280,9 +299,12 @@ Content-Type: application/json
 <h3>Files touched</h3>
 <table>
   <tr><th>File</th><th>Change</th></tr>
-  <tr><td><code>src/stores/savedPhrasesStore.ts</code></td><td>New — persisted store with add / remove / removeByLine / setKind / hasPhrase / findByLine</td></tr>
+  <tr><td><code>src/stores/savedPhrasesStore.ts</code></td><td>Persisted store with add / remove / removeByLine / setKind / hasPhrase / findByLine; entries now support <code>source?: 'video' | 'ai'</code></td></tr>
   <tr><td><code>app/listen.tsx</code></td><td>Bookmark column under timestamp; loads store on mount; per-line toggle</td></tr>
-  <tr><td><code>app/(tabs)/library.tsx</code></td><td>Replaced video list with Phrase/Vocabulary tabs reading from savedPhrasesStore</td></tr>
+  <tr><td><code>app/(tabs)/library.tsx</code></td><td>Phrase/Vocabulary tabs, search, time filters, parsed cards, detail sheet, copy/delete/open actions</td></tr>
+  <tr><td><code>app/ai-tutor.tsx</code></td><td>Generated keyword/phrase cards save to the same store with <code>source: 'ai'</code> and the correct kind</td></tr>
+  <tr><td><code>app/(tabs)/home.tsx</code></td><td>Video copy URL action, DB-backed delete action, 404-as-already-deleted handling</td></tr>
+  <tr><td><code>api/src/routes/videos.ts</code></td><td><code>DELETE /videos/:id</code> route with ownership check and session cleanup</td></tr>
 </table>
 
 <h2>Anything else worth knowing</h2>

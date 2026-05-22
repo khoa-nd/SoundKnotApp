@@ -377,10 +377,12 @@
     <tr><td>GET</td><td><code>/videos</code></td><td>—</td><td><code>{ videos: UserVideo[] }</code> (ordered by added_at DESC)</td></tr>
     <tr><td>POST</td><td><code>/videos</code></td><td><code>{ youtube_video_id, title?, channel?, thumbnail_url? }</code></td><td><code>{ video: UserVideo }</code> (upsert on user_id + youtube_video_id)</td></tr>
     <tr><td>GET</td><td><code>/videos/:id/sessions</code></td><td>—</td><td><code>{ sessions: PracticeSession[] }</code></td></tr>
+    <tr><td>DELETE</td><td><code>/videos/:id</code></td><td>—</td><td><code>{ ok: true }</code> after deleting owned practice sessions and video row</td></tr>
   </tbody>
 </table>
 <ul>
   <li>POST <code>/videos</code> auto-fetches title / channel / thumbnail from YouTube oEmbed (<code>https://www.youtube.com/oembed?url=...&amp;format=json</code>) when any of those fields is missing in the request body, so the app no longer needs to scrape metadata client-side</li>
+  <li>DELETE <code>/videos/:id</code> is ownership-scoped by authenticated <code>user_id</code>. It deletes matching <code>practice_sessions</code> first, then deletes <code>user_videos</code>. Missing or non-owned IDs return 404.</li>
 </ul>
 
 <h4>Sessions (all require auth)</h4>
@@ -457,6 +459,7 @@
     <tr><td>Gestures</td><td>react-native-gesture-handler</td><td>~2.28</td></tr>
     <tr><td>Local DB</td><td>expo-sqlite</td><td>~16.0</td></tr>
     <tr><td>Speech</td><td>expo-speech</td><td>~13.1</td></tr>
+    <tr><td>Clipboard</td><td>expo-clipboard</td><td>^56.0.3</td></tr>
     <tr><td>Haptics</td><td>expo-haptics</td><td>~14.1</td></tr>
     <tr><td>Fonts</td><td>Inter + JetBrains Mono</td><td>latest</td></tr>
   </tbody>
@@ -475,8 +478,8 @@
 │   ├── ai-settings.tsx           # AI provider/model picker
 │   └── (tabs)/                   # Tab navigator group
 │       ├── _layout.tsx           # Tab bottom nav (Home | Library | Profile)
-│       ├── home.tsx              # URL paste + AI preprocessing flow + library list w/ delete
-│       ├── library.tsx           # Phrase + Vocabulary tabs (saved bookmarks)
+│       ├── home.tsx              # URL paste + AI preprocessing flow + video list w/ copy/delete
+│       ├── library.tsx           # Phrase + Vocabulary tabs (saved items, search, time filters)
 │       └── progress.tsx          # Stats dashboard (streak + sessions + mastery)
 ├── src/
 │   ├── components/
@@ -526,6 +529,7 @@
 │   │   ├── playerStore.ts        # Audio playback state (legacy)
 │   │   ├── sessionStore.ts       # Local session + saveSession() API call
 │   │   ├── preprocessedTranscriptStore.ts # AI-split transcript lines keyed by videoId
+│   │   ├── savedPhrasesStore.ts  # Persisted phrase/vocabulary bookmarks + AI-curated saves
 │   │   └── contentStore.ts       # Content library + filters (legacy)
 │   ├── types/
 │   │   └── index.ts              # All TypeScript interfaces
@@ -683,7 +687,7 @@ Index (auth check via authStore.restoreSession)
 Home (Home tab)
   ├── Paste YouTube URL → preprocessing pipeline (provider → length → transcript → language → AI split)
   │     └── on success → POST /videos → store preprocessed transcript → /listen
-  └── Tap recent knot → /listen
+  └── Tap saved video row → /listen
       ↓
 Listen Screen
   ├── YouTube player (clipped rounded box)
@@ -775,6 +779,25 @@ Finished Screen
   <li>Used by <code>app/finished.tsx</code> to persist the practice session on mount (guarded by a <code>useRef</code> so it only fires once)</li>
 </ul>
 
+<h4>savedPhrasesStore (<code>src/stores/savedPhrasesStore.ts</code>)</h4>
+<pre><code>interface SavedPhrase {
+  id: string;
+  text: string;
+  kind: 'phrase' | 'vocabulary';
+  source?: 'video' | 'ai';
+  videoId: string;
+  videoTitle?: string;
+  videoChannel?: string;
+  start: number;
+  createdAt: number;
+}</code></pre>
+<ul>
+  <li>Persists to <strong>AsyncStorage</strong> under <code>soundknot_saved_phrases</code>.</li>
+  <li>Transcript bookmarks save as <code>source: 'video'</code> (default) and can link back to <code>/listen</code> at timestamp.</li>
+  <li>AI Tutor generated keywords/phrases save as <code>source: 'ai'</code>. Library displays them as AI-curated and disables source-video navigation.</li>
+  <li>Lookup helpers use <code>videoId@roundedStartMs</code>: <code>hasPhrase()</code>, <code>findByLine()</code>, and <code>removeByLine()</code>.</li>
+</ul>
+
 <h4>playerStore / contentStore (legacy)</h4>
 <p>Defined but not used by V2 screens.</p>
 
@@ -797,7 +820,7 @@ app/login.tsx
       ↓
 Authenticated tabs
   ├── Home: homeService.fetch() (GET /home)
-  ├── Library: videoService.list() (GET /videos)
+  ├── Library: savedPhrasesStore.load() (AsyncStorage)
   └── Profile: authService.me() + homeService.fetch()</code></pre>
 
 <h2 id="types">8. Types &amp; Data Models</h2>
@@ -838,6 +861,22 @@ interface HomeData {
   recentKnots: PracticeSession[];
   videos: UserVideo[];
 }</code></pre>
+
+<h3>Local persisted library items</h3>
+<pre><code>type SavedPhraseKind = 'phrase' | 'vocabulary';
+
+interface SavedPhrase {
+  id: string;
+  text: string;
+  kind: SavedPhraseKind;
+  source?: 'video' | 'ai';
+  videoId: string;
+  videoTitle?: string;
+  videoChannel?: string;
+  start: number;
+  createdAt: number;
+}</code></pre>
+<p><code>source</code> is optional for backward compatibility with saved entries created before the field existed. Missing source is treated as <code>'video'</code>; older AI-curated saves are detected by their synthetic large <code>start</code> timestamp.</p>
 
 <h3>Local types (legacy / non-API)</h3>
 <ul>
@@ -882,7 +921,7 @@ interface HomeData {
   <tbody>
     <tr><td><code>authService</code> (<code>auth.ts</code>)</td><td>POST /auth/register, POST /auth/login, POST /auth/logout, GET /auth/me</td><td><code>authStore</code>, <code>userStore</code>, <code>progress.tsx</code></td></tr>
     <tr><td><code>homeService</code> (<code>home.ts</code>)</td><td>GET /home → <code>HomeData</code></td><td><code>home.tsx</code>, <code>progress.tsx</code></td></tr>
-    <tr><td><code>videoService</code> (<code>videos.ts</code>)</td><td>GET /videos, POST /videos, GET /videos/:id/sessions, DELETE /videos/:id</td><td><code>home.tsx</code> (add + remove), <code>library.tsx</code> (list)</td></tr>
+    <tr><td><code>videoService</code> (<code>videos.ts</code>)</td><td>GET /videos, POST /videos, GET /videos/:id/sessions, DELETE /videos/:id</td><td><code>home.tsx</code> (list/add/remove), <code>listen.tsx</code> / practice flows (sessions)</td></tr>
     <tr><td><code>sessionService</code> (<code>sessions.ts</code>)</td><td>POST /sessions</td><td><code>sessionStore.saveSession</code> → <code>finished.tsx</code></td></tr>
     <tr><td><code>transcript</code> (<code>transcript.ts</code>)</td><td>YouTube InnerTube via <code>youtube-transcript</code></td><td><code>listen.tsx</code>, <code>preprocess.ts</code></td></tr>
     <tr><td><code>preprocessService</code> (<code>preprocess.ts</code>)</td><td>Local pipeline + POST /ai/split-transcript</td><td><code>home.tsx</code></td></tr>
@@ -1017,13 +1056,27 @@ return m ? m[1] : null;</code></pre>
 </ul>
 
 <h3>10.7 Home Library Item Removal (<code>app/(tabs)/home.tsx</code>)</h3>
-<p>Each video row in the Home library has an X icon (Ionicons <code>close</code>). Tapping it shows an <code>Alert.alert</code> confirm sheet, then performs an optimistic update:</p>
+<p>Each video row in the Home list has copy and delete icon buttons. Tapping delete shows an <code>Alert.alert</code> confirm sheet, then performs an optimistic update:</p>
 <ol>
   <li>Snapshot current <code>videos</code> array</li>
   <li>Filter the doomed item out and <code>setVideos()</code> immediately for instant feedback</li>
   <li><code>await videoService.remove(id)</code> (DELETE <code>/videos/:id</code>)</li>
-  <li>On error, restore the snapshot — the item reappears in place</li>
+  <li>If the API returns 404 / not found, keep the item removed because the DB row is already gone</li>
+  <li>On other errors, restore the snapshot and show an error alert</li>
 </ol>
+<p>The copy button uses <code>expo-clipboard</code> to copy <code>https://www.youtube.com/watch?v={youtube_video_id}</code>. It shows a small fading bottom toast, not a blocking alert.</p>
+
+<h3>10.7a Saved Library UX (<code>app/(tabs)/library.tsx</code>)</h3>
+<p>The Library tab reads from <code>savedPhrasesStore</code>, not <code>GET /videos</code>. It presents saved phrases and vocabulary as searchable cards.</p>
+<ul>
+  <li>Main tabs: <code>Phrases</code> and <code>Vocabulary</code>, with counts.</li>
+  <li>Search checks saved text, video title, video channel, kind, and source labels.</li>
+  <li>Time filters: <code>All</code>, <code>Yesterday</code>, <code>Last 7 days</code>, based on <code>createdAt</code>.</li>
+  <li>Cards display source badges (<code>Video</code> or <code>AI-curated</code>), parsed content preview, source metadata, and inline actions.</li>
+  <li>Parsed AI content follows <code>title - explanation Transcript/Example: ...</code>: title is bold, explanation is on the next line, example/transcript is on its own italic line.</li>
+  <li>Card tap opens a detail bottom sheet with full content. Video-saved items expose <code>Open at timestamp</code>; AI-curated items expose only copy/delete.</li>
+  <li>The <code>Move to Phrase/Vocabulary</code> action was intentionally removed from cards and detail sheet to keep Library focused and less cluttered.</li>
+</ul>
 
 <h3>10.8 AI Tutor Keyboard Handling (<code>app/ai-tutor.tsx</code> + <code>app/_layout.tsx</code>)</h3>
 <p>iOS modal presentation interacts poorly with <code>KeyboardAvoidingView</code>: in the default <code>presentation: 'modal'</code> (page sheet) mode, the keyboard offset is measured against the sheet's frame rather than the screen, so the input docks too low and gets covered. Fix:</p>
@@ -1426,6 +1479,8 @@ User:   "Split this transcript into appropriate-length spoken English practice
 <h2 id="ai-chat">Sequence — AI Tutor Chat (Text + Voice)</h2>
 
 <p>Triggered from <code>/listen</code> when the user taps <em>Ask AI Tutor</em>. The chat opens as a full-screen modal (<code>/ai-tutor</code>) and carries video context as route params. Voice messages are recorded to a local file, base64-encoded, and shipped to Gemini as <code>inlineData</code> — Gemini transcribes and answers in a single round trip.</p>
+
+<p>The AI Tutor also offers starter/follow-up prompts that ask Gemini to generate keyword, grammar, or phrase lists from the current video context. These generated list replies render as horizontal cards. Each card can be saved into <code>savedPhrasesStore</code>: keyword lists use <code>kind: 'vocabulary'</code>, grammar/phrase lists use <code>kind: 'phrase'</code>, and all AI-generated saves use <code>source: 'ai'</code>. The visible user bubble shows the short prompt label while the hidden request content sent to Gemini remains detailed.</p>
 
 <div class="ascii">User      ai-tutor.tsx    aiTutor.chat()    CF Worker (/ai/chat)    Gemini
  │              │                │                  │                    │
