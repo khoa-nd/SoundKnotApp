@@ -153,4 +153,44 @@ videos.get("/:id/sessions", async (c) => {
   return c.json({ sessions: data });
 });
 
+// DELETE /videos/:id — remove a video from current user's library
+videos.delete("/:id", async (c) => {
+  const userId = c.get("userId");
+  const videoId = c.req.param("id");
+  const supabase = createSupabaseAdmin(c.env);
+
+  const { data: video, error: videoError } = await supabase
+    .from("user_videos")
+    .select("id")
+    .eq("id", videoId)
+    .eq("user_id", userId)
+    .single();
+
+  if (videoError || !video) {
+    return c.json({ error: "Video not found" }, 404);
+  }
+
+  const { error: sessionsError } = await supabase
+    .from("practice_sessions")
+    .delete()
+    .eq("video_id", videoId)
+    .eq("user_id", userId);
+
+  if (sessionsError) {
+    return c.json({ error: sessionsError.message }, 500);
+  }
+
+  const { error } = await supabase
+    .from("user_videos")
+    .delete()
+    .eq("id", videoId)
+    .eq("user_id", userId);
+
+  if (error) {
+    return c.json({ error: error.message }, 500);
+  }
+
+  return c.json({ ok: true });
+});
+
 export default videos;

@@ -28,6 +28,7 @@ import { chat, type AiMessage, type AiContext, type AiAudioAttachment } from '..
 interface UiMessage extends AiMessage {
   id: string;
   timestamp: number;
+  displayContent?: string;
   audioMs?: number; // if this message originated from a voice recording
   pending?: boolean;
   listKind?: SavedPhraseKind;
@@ -98,7 +99,7 @@ export default function AiTutorScreen() {
   }, [messages.length, sending]);
 
   // ── Send a text message ───────────────────────────────────────────────────
-  const sendText = async (text: string) => {
+  const sendText = async (text: string, displayText?: string) => {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setError(null);
@@ -106,6 +107,7 @@ export default function AiTutorScreen() {
       id: `m-${Date.now()}`,
       role: 'user',
       content: trimmed,
+      displayContent: displayText?.trim() || trimmed,
       timestamp: Date.now(),
     };
     const next = [...messages, userMsg];
@@ -238,12 +240,12 @@ export default function AiTutorScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
       >
         <View style={[styles.shell, { borderColor: colors.hair }]}>
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: Math.max(34, insets.top + 12) }]}>
             <Text style={[styles.title, { color: colors.ink }]}>Ask about this video</Text>
             <TouchableOpacity
               onPress={() => router.back()}
               activeOpacity={0.7}
-              style={styles.closeBtn}
+              style={[styles.closeBtn, { top: Math.max(28, insets.top + 6) }]}
               accessibilityRole="button"
               accessibilityLabel="Close AI tutor"
             >
@@ -267,36 +269,34 @@ export default function AiTutorScreen() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {messages.length === 0 && (
-              <View style={styles.starter}>
-                <Text style={[styles.sparkle, { color: colors.ink }]}>✦</Text>
-                <Text style={[styles.greeting, { color: colors.ink }]}>
-                  Hello! Curious about what you&apos;re watching? I&apos;m here to help.
-                </Text>
-                <Text style={[styles.promptIntro, { color: colors.ink }]}>
-                  Not sure what to ask? Choose something:
-                </Text>
-                <View style={styles.suggestionList}>
-                  {starterSuggestions.map((item) => (
-                    <TouchableOpacity
-                      key={item.label}
-                      activeOpacity={0.72}
-                      onPress={() => sendText(item.prompt)}
-                      disabled={sending}
-                      style={[
-                        styles.suggestionChip,
-                        item.wide && styles.suggestionChipWide,
-                        item.align === 'right' && styles.suggestionRight,
-                        item.align === 'center' && styles.suggestionCenter,
-                        { borderColor: colors.hair, backgroundColor: colors.paper },
-                      ]}
-                    >
-                      <Text style={[styles.suggestionText, { color: colors.ink }]}>{item.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+            <View style={styles.starter}>
+              <Text style={[styles.sparkle, { color: colors.ink }]}>✦</Text>
+              <Text style={[styles.greeting, { color: colors.ink }]}>
+                Hello! Curious about what you&apos;re watching? I&apos;m here to help.
+              </Text>
+              <Text style={[styles.promptIntro, { color: colors.ink }]}>
+                Not sure what to ask? Choose something:
+              </Text>
+              <View style={styles.suggestionList}>
+                {starterSuggestions.map((item) => (
+                  <TouchableOpacity
+                    key={item.label}
+                    activeOpacity={0.72}
+                    onPress={() => sendText(item.prompt, item.label)}
+                    disabled={sending}
+                    style={[
+                      styles.suggestionChip,
+                      item.wide && styles.suggestionChipWide,
+                      item.align === 'right' && styles.suggestionRight,
+                      item.align === 'center' && styles.suggestionCenter,
+                      { borderColor: colors.hair, backgroundColor: colors.paper },
+                    ]}
+                  >
+                    <Text style={[styles.suggestionText, { color: colors.ink }]}>{item.label}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
-            )}
+            </View>
             {messages.map((m) => (
               <Bubble
                 key={m.id}
@@ -319,7 +319,7 @@ export default function AiTutorScreen() {
                     <TouchableOpacity
                       key={item.label}
                       activeOpacity={0.72}
-                      onPress={() => sendText(item.prompt)}
+                      onPress={() => sendText(item.prompt, item.label)}
                       style={[styles.followUpChip, { borderColor: colors.hair, backgroundColor: colors.paper }]}
                     >
                       <Text style={[styles.followUpText, { color: colors.ink }]}>{item.label}</Text>
@@ -419,7 +419,7 @@ function Bubble({
       backgroundColor: isUser ? colors.ink : colors.paper2,
       alignSelf: isUser ? 'flex-end' : 'flex-start',
       maxWidth: listItems.length ? '100%' : '85%',
-    }]}>
+    }, listItems.length > 0 && styles.bubbleList]}>
       {message.audio ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
           <Ionicons name="mic" size={16} color={isUser ? colors.paper : colors.ink2} />
@@ -428,23 +428,28 @@ function Bubble({
           </Text>
         </View>
       ) : listItems.length > 0 && message.listKind ? (
-        <View style={styles.generatedList}>
+        <ScrollView
+          horizontal
+          style={styles.generatedSlider}
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.generatedList}
+        >
           {listItems.map((item, index) => {
             const key = savedItemKey(item, message.listKind!);
             const saved = !!savedGenerated[key];
+            const parsed = parseGeneratedItem(item);
             return (
               <View key={`${index}-${item.slice(0, 16)}`} style={[styles.generatedListItem, { borderColor: colors.hair, backgroundColor: colors.paper }]}>
-                <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>{index + 1}</Text>
-                <Text style={[styles.generatedItemText, { color: colors.ink }]}>
-                  {parseBoldSegments(item).map((segment, segmentIndex) => (
-                    <Text
-                      key={`${segmentIndex}-${segment.text}`}
-                      style={segment.bold ? { fontWeight: '700', color: colors.ink } : { color: colors.ink }}
-                    >
-                      {segment.text}
-                    </Text>
-                  ))}
-                </Text>
+                <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>#{index + 1}</Text>
+                <View style={styles.generatedItemText}>
+                  <Text style={[styles.generatedTitle, { color: colors.ink }]}>{parsed.title}</Text>
+                  {!!parsed.explanation && (
+                    <Text style={[styles.generatedExplanation, { color: colors.ink2 }]}>{parsed.explanation}</Text>
+                  )}
+                  {!!parsed.example && (
+                    <Text style={[styles.generatedExample, { color: colors.ink3 }]}>{parsed.example}</Text>
+                  )}
+                </View>
                 <TouchableOpacity
                   onPress={() => onSaveGeneratedItem(stripMarkdown(item), message.listKind!)}
                   disabled={saved}
@@ -461,9 +466,9 @@ function Bubble({
               </View>
             );
           })}
-        </View>
+        </ScrollView>
       ) : (
-        <FormattedMessageText content={message.content} isUser={isUser} colors={colors} />
+        <FormattedMessageText content={message.displayContent ?? message.content} isUser={isUser} colors={colors} />
       )}
     </View>
   );
@@ -573,6 +578,24 @@ function stripMarkdown(text: string): string {
     .trim();
 }
 
+function parseGeneratedItem(text: string): { title: string; explanation: string; example: string } {
+  const clean = stripMarkdown(text);
+  const exampleMatch = clean.match(/\b(?:Transcript|Example)\s*:\s*["“]?(.+?)["”]?$/i);
+  const beforeExample = exampleMatch ? clean.slice(0, exampleMatch.index).trim() : clean;
+  const example = exampleMatch?.[1]?.trim() ?? '';
+  const separator = beforeExample.indexOf(' - ');
+
+  if (separator < 0) {
+    return { title: beforeExample, explanation: '', example };
+  }
+
+  return {
+    title: beforeExample.slice(0, separator).trim(),
+    explanation: beforeExample.slice(separator + 3).trim(),
+    example,
+  };
+}
+
 function savedItemKey(text: string, kind: SavedPhraseKind): string {
   return `${kind}:${stripMarkdown(text).toLowerCase()}`;
 }
@@ -673,6 +696,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingTop: 22,
     paddingBottom: Spacing.xxxl,
+    position: 'relative',
   },
   title: {
     fontFamily: Typography.headingLarge.fontFamily,
@@ -680,9 +704,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     lineHeight: 28,
     flex: 1,
-    paddingRight: Spacing.xxxl,
+    paddingRight: 56,
   },
   closeBtn: {
+    position: 'absolute',
+    top: 16,
+    right: 20,
     width: 40,
     height: 40,
     borderRadius: Radius.pill,
@@ -776,40 +803,65 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   generatedList: {
-    gap: Spacing.md,
+    gap: Spacing.lg,
+    paddingRight: Spacing.xl,
+  },
+  generatedSlider: {
+    height: 250,
+    maxHeight: 250,
     alignSelf: 'stretch',
   },
   generatedListItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    width: 270,
+    height: 230,
     gap: Spacing.md,
     borderWidth: 1,
-    borderRadius: Radius.xl,
-    padding: Spacing.md,
+    borderRadius: Radius.xxxl,
+    padding: Spacing.xl,
   },
   generatedIndex: {
     ...Typography.monoSmall,
-    width: 18,
-    paddingTop: 3,
-    textAlign: 'right',
+    alignSelf: 'flex-start',
   },
   generatedItemText: {
     flex: 1,
-    ...Typography.bodyMedium,
+    gap: Spacing.sm,
+  },
+  generatedTitle: {
+    fontFamily: Typography.headingSmall.fontFamily,
+    fontSize: 16,
+    lineHeight: 21,
+    fontWeight: '700',
+  },
+  generatedExplanation: {
+    fontFamily: Typography.bodySmall.fontFamily,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  generatedExample: {
+    fontFamily: Typography.bodySmall.fontFamily,
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: 'italic',
   },
   addItemBtn: {
-    width: 30,
-    height: 30,
+    width: 36,
+    height: 36,
     borderRadius: Radius.circle,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-end',
   },
   bubble: {
     maxWidth: '85%',
     paddingHorizontal: Spacing.xxxl,
     paddingVertical: Spacing.xl,
     borderRadius: Radius.xxxl,
+  },
+  bubbleList: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
   },
   bubbleUser: { borderBottomRightRadius: Radius.sm },
   bubbleAi: { borderBottomLeftRadius: Radius.sm },
