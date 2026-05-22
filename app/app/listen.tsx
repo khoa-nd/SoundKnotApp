@@ -23,6 +23,7 @@ import { fetchTranscript, formatTimestamp, findCurrentLineIndex, type Transcript
 import { YoutubePlayerView, type YoutubePlayerHandle } from '../src/components/youtube/YoutubePlayerView';
 import { buildTranscriptWindow } from '../src/services/aiTutor';
 import { useSavedPhrasesStore } from '../src/stores/savedPhrasesStore';
+import { usePreprocessedTranscriptStore } from '../src/stores/preprocessedTranscriptStore';
 
 // ── Component ──
 
@@ -54,6 +55,7 @@ export default function ListenScreen() {
 
   const lineYPositions = useRef<Record<number, number>>({});
   const scrollViewHeight = useRef(0);
+  const getPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.getTranscript);
 
   // Long-press contextual menu
   const [menuLineIdx, setMenuLineIdx] = useState<number | null>(null);
@@ -77,6 +79,13 @@ export default function ListenScreen() {
     setTranscriptLoading(true);
     setTranscriptError(null);
 
+    const prepared = getPreprocessedTranscript(vid);
+    if (prepared) {
+      setTranscript(prepared);
+      setTranscriptLoading(false);
+      return () => { cancelled = true; };
+    }
+
     fetchTranscript(vid)
       .then((data) => {
         if (!cancelled) {
@@ -93,7 +102,7 @@ export default function ListenScreen() {
       });
 
     return () => { cancelled = true; };
-  }, [vid]);
+  }, [vid, getPreprocessedTranscript]);
 
   useEffect(() => {
     if (!phrasesHydrated) loadPhrases();

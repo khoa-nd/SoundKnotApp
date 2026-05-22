@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Image,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -22,6 +23,8 @@ import { Spacing, Radius } from '../../src/constants/Spacing';
 import { Chip } from '../../src/components/ui/Chip';
 import { homeService } from '../../src/services/home';
 import { videoService } from '../../src/services/videos';
+import { INITIAL_PREPROCESS_STEPS, preprocessService, type PreprocessStep, type PreprocessStepId } from '../../src/services/preprocess';
+import { usePreprocessedTranscriptStore } from '../../src/stores/preprocessedTranscriptStore';
 import type { HomeData, UserVideo } from '../../src/types';
 
 export default function HomeScreen() {
@@ -31,6 +34,9 @@ export default function HomeScreen() {
   const [videos, setVideos] = useState<UserVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [preprocessSteps, setPreprocessSteps] = useState<PreprocessStep[]>(INITIAL_PREPROCESS_STEPS);
+  const [preprocessError, setPreprocessError] = useState<string | null>(null);
+  const setPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.setTranscript);
 
   useFocusEffect(
     useCallback(() => {
@@ -52,22 +58,27 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const extractYouTubeId = (url: string) => {
-    const m = url.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
-    return m ? m[1] : null;
-  };
-
   const submitUrl = async () => {
-    const vid = extractYouTubeId(urlValue.trim());
-    if (!vid) return;
+    if (!urlValue.trim()) return;
 
     setSubmitting(true);
+    setPreprocessError(null);
+    setPreprocessSteps(INITIAL_PREPROCESS_STEPS);
+
+    const updateStep = (id: PreprocessStepId, status: PreprocessStep['status'], detail?: string) => {
+      setPreprocessSteps((steps) =>
+        steps.map((step) => (step.id === id ? { ...step, status, detail } : step)),
+      );
+    };
+
     try {
-      const { video } = await videoService.add({ youtube_video_id: vid });
+      const prepared = await preprocessService.prepareYoutubeUrl(urlValue, updateStep);
+      setPreprocessedTranscript(prepared.videoId, prepared.lines);
+      const { video } = await videoService.add({ youtube_video_id: prepared.videoId });
       setUrlValue('');
-      router.push({ pathname: '/listen', params: { videoId: vid, userVideoId: video.id } });
-    } catch {
-      router.push({ pathname: '/listen', params: { videoId: vid } });
+      router.push({ pathname: '/listen', params: { videoId: prepared.videoId, userVideoId: video.id } });
+    } catch (err: any) {
+      setPreprocessError(err?.message ?? 'Could not prepare this video.');
     } finally {
       setSubmitting(false);
     }
@@ -146,7 +157,7 @@ export default function HomeScreen() {
             {submitting ? (
               <ActivityIndicator size="small" color={colors.paper} />
             ) : (
-              <Text style={[Typography.bodyMedium, { color: colors.paper, fontSize: 16 }]}>→</Text>
+              <Ionicons name="sparkles-outline" size={18} color={colors.paper} />
             )}
           </TouchableOpacity>
         </View>
@@ -224,6 +235,48 @@ export default function HomeScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <Modal visible={submitting || !!preprocessError} transparent animationType="fade">
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.progressCard, { backgroundColor: colors.paper, borderColor: colors.hair }]}> 
+            <Text style={[Typography.headingSmall, { color: colors.ink }]}>Preparing practice</Text>
+            <Text style={[Typography.bodySmall, { color: colors.ink4, marginTop: Spacing.sm }]}>Checking the link, transcript, and AI split before opening practice.</Text>
+            <View style={styles.stepList}>
+              {preprocessSteps.map((step) => (
+                <View key={step.id} style={styles.stepRow}>
+                  <View style={[styles.stepIcon, { borderColor: colors.hair, backgroundColor: step.status === 'done' ? colors.ink : colors.paper2 }]}> 
+                    {step.status === 'running' ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : step.status === 'done' ? (
+                      <Ionicons name="checkmark" size={14} color={colors.paper} />
+                    ) : step.status === 'failed' ? (
+                      <Ionicons name="close" size={14} color={colors.accent} />
+                    ) : (
+                      <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>·</Text>
+                    )}
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[Typography.bodySmall, { color: colors.ink }]}>{step.label}</Text>
+                    {!!step.detail && <Text style={[Typography.monoSmall, { color: colors.ink4, marginTop: 2 }]}>{step.detail}</Text>}
+                  </View>
+                </View>
+              ))}
+            </View>
+            {!!preprocessError && (
+              <>
+                <Text style={[Typography.bodySmall, { color: colors.accent, marginTop: Spacing.lg }]}>{preprocessError}</Text>
+                <TouchableOpacity
+                  style={[styles.dismissBtn, { backgroundColor: colors.ink }]}
+                  onPress={() => setPreprocessError(null)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[Typography.button, { color: colors.paper }]}>Close</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -294,5 +347,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: Spacing.sm,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(42, 37, 34, 0.45)',
+    justifyContent: 'center',
+    padding: Spacing.screen,
+  },
+  progressCard: {
+    borderWidth: 1,
+    borderRadius: Radius.xxxl,
+    padding: Spacing.xxl,
+  },
+  stepList: {
+    marginTop: Spacing.xl,
+    gap: Spacing.lg,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+  },
+  stepIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dismissBtn: {
+    height: 44,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.xl,
   },
 });

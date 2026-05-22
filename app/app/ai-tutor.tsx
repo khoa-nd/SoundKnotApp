@@ -14,7 +14,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -22,6 +22,7 @@ import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
 import { useAiSettingsStore } from '../src/stores/aiSettingsStore';
+import { useSavedPhrasesStore, type SavedPhraseKind } from '../src/stores/savedPhrasesStore';
 import { chat, type AiMessage, type AiContext, type AiAudioAttachment } from '../src/services/aiTutor';
 
 interface UiMessage extends AiMessage {
@@ -29,10 +30,19 @@ interface UiMessage extends AiMessage {
   timestamp: number;
   audioMs?: number; // if this message originated from a voice recording
   pending?: boolean;
+  listKind?: SavedPhraseKind;
+}
+
+interface PromptSuggestion {
+  label: string;
+  prompt: string;
+  align?: 'left' | 'right' | 'center';
+  wide?: boolean;
 }
 
 export default function AiTutorScreen() {
   const colors = useTheme();
+  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     videoId?: string;
     userVideoId?: string;
@@ -44,12 +54,14 @@ export default function AiTutorScreen() {
   }>();
 
   const { settings, hydrated, load } = useAiSettingsStore();
+  const { hydrated: savedHydrated, load: loadSaved, add: addSaved } = useSavedPhrasesStore();
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [draft, setDraft] = useState(params.prefill ?? '');
   const [sending, setSending] = useState(false);
   const [recording, setRecording] = useState(false);
   const [recordedSec, setRecordedSec] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [savedGenerated, setSavedGenerated] = useState<Record<string, boolean>>({});
   const recordingRef = useRef<Audio.Recording | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const scrollRef = useRef<ScrollView>(null);
@@ -61,10 +73,16 @@ export default function AiTutorScreen() {
     transcriptWindow: params.transcriptWindow,
     selection: params.selection,
   };
+  const starterSuggestions = buildPromptSuggestions();
+  const followUpSuggestions = buildFollowUpSuggestions(baseContext, messages);
 
   useEffect(() => {
     if (!hydrated) load();
   }, [hydrated, load]);
+
+  useEffect(() => {
+    if (!savedHydrated) loadSaved();
+  }, [savedHydrated, loadSaved]);
 
   useEffect(() => {
     return () => {
@@ -124,7 +142,13 @@ export default function AiTutorScreen() {
       const res = await chat({ messages: apiMessages, context, settings });
       setMessages((prev) => [
         ...prev,
-        { id: `m-${Date.now()}-r`, role: 'assistant', content: res.reply, timestamp: Date.now() },
+        {
+          id: `m-${Date.now()}-r`,
+          role: 'assistant',
+          content: res.reply,
+          timestamp: Date.now(),
+          listKind: inferSavedKind(history),
+        },
       ]);
     } catch (err: any) {
       setError(err?.message ?? String(err));
@@ -192,125 +216,209 @@ export default function AiTutorScreen() {
     try { await rec?.stopAndUnloadAsync(); } catch { /* ignore */ }
   };
 
+  const saveGeneratedItem = async (text: string, kind: SavedPhraseKind) => {
+    const key = savedItemKey(text, kind);
+    if (savedGenerated[key]) return;
+    const saved = await addSaved({
+      text,
+      kind,
+      videoId: params.videoId ?? 'ai-tutor',
+      videoTitle: params.videoTitle,
+      videoChannel: params.videoChannel,
+      start: Date.now() / 1000,
+    });
+    setSavedGenerated((prev) => ({ ...prev, [key]: true, [savedItemKey(saved.text, saved.kind)]: true }));
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: colors.paper }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
-    >
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.headerBtn}>
-            <Ionicons name="chevron-back" size={22} color={colors.ink} />
-            <Text style={[Typography.headingSmall, { color: colors.ink }]}>Back</Text>
-          </TouchableOpacity>
-          <Text style={[Typography.monoSmall, { color: colors.ink3 }]}>AI TUTOR</Text>
-          <TouchableOpacity onPress={() => router.push('/ai-settings' as any)} activeOpacity={0.7} style={styles.headerBtn}>
-            <Ionicons name="settings-outline" size={20} color={colors.ink2} />
-          </TouchableOpacity>
-        </View>
-
-        {params.selection && (
-          <View style={[styles.selectionBanner, { backgroundColor: colors.accentSoft, borderColor: colors.hair }]}>
-            <Text style={[Typography.marker, { color: colors.accentInk }]}>SELECTED</Text>
-            <Text style={[Typography.bodySmall, { color: colors.ink, marginTop: Spacing.xs }]} numberOfLines={3}>
-              "{params.selection}"
-            </Text>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
+      >
+        <View style={[styles.shell, { borderColor: colors.hair }]}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.ink }]}>Ask about this video</Text>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              activeOpacity={0.7}
+              style={styles.closeBtn}
+              accessibilityRole="button"
+              accessibilityLabel="Close AI tutor"
+            >
+              <Ionicons name="close" size={34} color={colors.ink} />
+            </TouchableOpacity>
           </View>
-        )}
 
-        <ScrollView
-          ref={scrollRef}
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          {messages.length === 0 && (
-            <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
-              <Ionicons name="sparkles-outline" size={28} color={colors.accent} />
-              <Text style={[Typography.heading, { marginTop: Spacing.md, textAlign: 'center' }]}>Ask anything</Text>
-              <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center', marginTop: Spacing.sm }]}>
-                Word meanings, slang, idioms, grammar, pronunciation. Type a question or hold the mic.
+          {params.selection && (
+            <View style={[styles.selectionBanner, { backgroundColor: colors.accentSoft, borderColor: colors.hair }]}>
+              <Text style={[Typography.marker, { color: colors.accentInk }]}>Selected</Text>
+              <Text style={[Typography.bodySmall, { color: colors.ink, marginTop: Spacing.xs }]} numberOfLines={3}>
+                “{params.selection}”
               </Text>
             </View>
           )}
-          {messages.map((m) => (
-            <Bubble key={m.id} message={m} colors={colors} />
-          ))}
-          {sending && (
-            <View style={[styles.bubble, styles.bubbleAi, { backgroundColor: colors.paper2 }]}>
-              <ActivityIndicator size="small" color={colors.ink3} />
-            </View>
-          )}
-          {error && (
-            <View style={[styles.errorBox, { borderColor: colors.negative, backgroundColor: 'rgba(229,57,53,0.06)' }]}>
-              <Text style={[Typography.bodySmall, { color: colors.negative }]}>{error}</Text>
-            </View>
-          )}
-        </ScrollView>
 
-        <View style={[styles.inputDock, { borderTopColor: colors.hair, backgroundColor: colors.paper }]}>
-          {recording ? (
-            <View style={[styles.recordingBar, { backgroundColor: colors.paper2, borderColor: colors.hair }]}>
-              <View style={[styles.recDot, { backgroundColor: colors.negative }]} />
-              <Text style={[Typography.bodyMedium, { flex: 1, color: colors.ink2 }]}>
-                Recording… {String(Math.floor(recordedSec / 60)).padStart(2, '0')}:
-                {String(recordedSec % 60).padStart(2, '0')}
-              </Text>
-              <TouchableOpacity onPress={cancelRecording} style={[styles.iconBtn, { borderColor: colors.hair }]}>
-                <Ionicons name="close" size={18} color={colors.ink} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={stopRecordingAndSend}
-                style={[styles.iconBtn, { backgroundColor: colors.ink, borderWidth: 0 }]}
-              >
-                <Ionicons name="checkmark" size={18} color={colors.paper} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.inputRow}>
-              <TextInput
-                style={[styles.textInput, { backgroundColor: colors.paper2, borderColor: colors.hair, color: colors.ink }]}
-                value={draft}
-                onChangeText={setDraft}
-                placeholder="Ask the tutor…"
-                placeholderTextColor={colors.ink4}
-                onSubmitEditing={() => sendText(draft)}
-                multiline
-                editable={!sending}
+          <ScrollView
+            ref={scrollRef}
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {messages.length === 0 && (
+              <View style={styles.starter}>
+                <Text style={[styles.sparkle, { color: colors.ink }]}>✦</Text>
+                <Text style={[styles.greeting, { color: colors.ink }]}>
+                  Hello! Curious about what you&apos;re watching? I&apos;m here to help.
+                </Text>
+                <Text style={[styles.promptIntro, { color: colors.ink }]}>
+                  Not sure what to ask? Choose something:
+                </Text>
+                <View style={styles.suggestionList}>
+                  {starterSuggestions.map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      activeOpacity={0.72}
+                      onPress={() => sendText(item.prompt)}
+                      disabled={sending}
+                      style={[
+                        styles.suggestionChip,
+                        item.wide && styles.suggestionChipWide,
+                        item.align === 'right' && styles.suggestionRight,
+                        item.align === 'center' && styles.suggestionCenter,
+                        { borderColor: colors.hair, backgroundColor: colors.paper },
+                      ]}
+                    >
+                      <Text style={[styles.suggestionText, { color: colors.ink }]}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+            {messages.map((m) => (
+              <Bubble
+                key={m.id}
+                message={m}
+                colors={colors}
+                savedGenerated={savedGenerated}
+                onSaveGeneratedItem={saveGeneratedItem}
               />
-              <TouchableOpacity
-                style={[styles.iconBtn, { borderColor: colors.hair }]}
-                onPress={startRecording}
-                disabled={sending}
-              >
-                <Ionicons name="mic-outline" size={20} color={colors.ink} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.iconBtn,
-                  { backgroundColor: draft.trim() && !sending ? colors.ink : colors.ink4, borderWidth: 0 },
-                ]}
-                onPress={() => sendText(draft)}
-                disabled={!draft.trim() || sending}
-              >
-                <Ionicons name="arrow-up" size={20} color={colors.paper} />
-              </TouchableOpacity>
-            </View>
-          )}
+            ))}
+            {sending && (
+              <View style={[styles.bubble, styles.bubbleAi, { backgroundColor: colors.paper2 }]}>
+                <ActivityIndicator size="small" color={colors.ink3} />
+              </View>
+            )}
+            {messages.length > 0 && !sending && (
+              <View style={styles.followUpBlock}>
+                <Text style={[styles.followUpLabel, { color: colors.ink4 }]}>Keep going</Text>
+                <View style={styles.followUpList}>
+                  {followUpSuggestions.map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      activeOpacity={0.72}
+                      onPress={() => sendText(item.prompt)}
+                      style={[styles.followUpChip, { borderColor: colors.hair, backgroundColor: colors.paper }]}
+                    >
+                      <Text style={[styles.followUpText, { color: colors.ink }]}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+            {error && (
+              <View style={[styles.errorBox, { borderColor: colors.negative, backgroundColor: 'rgba(229,57,53,0.06)' }]}>
+                <Text style={[Typography.bodySmall, { color: colors.negative }]}>{error}</Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View style={[styles.inputDock, { borderTopColor: colors.hair, backgroundColor: colors.paper, paddingBottom: Math.max(insets.bottom, Spacing.xxxl) }]}>
+            {recording ? (
+              <View style={[styles.recordingBar, { backgroundColor: colors.paper2, borderColor: colors.hair }]}>
+                <View style={[styles.recDot, { backgroundColor: colors.negative }]} />
+                <Text style={[Typography.bodyMedium, { flex: 1, color: colors.ink2 }]}>
+                  Recording… {String(Math.floor(recordedSec / 60)).padStart(2, '0')}:
+                  {String(recordedSec % 60).padStart(2, '0')}
+                </Text>
+                <TouchableOpacity onPress={cancelRecording} style={[styles.iconBtn, { borderColor: colors.hair }]}>
+                  <Ionicons name="close" size={18} color={colors.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={stopRecordingAndSend}
+                  style={[styles.iconBtn, { backgroundColor: colors.ink, borderWidth: 0 }]}
+                >
+                  <Ionicons name="checkmark" size={18} color={colors.paper} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.inputRow}>
+                <TextInput
+                  style={[styles.textInput, { backgroundColor: colors.paper2, borderColor: colors.hair, color: colors.ink }]}
+                  value={draft}
+                  onChangeText={setDraft}
+                  placeholder="Ask the tutor…"
+                  placeholderTextColor={colors.ink4}
+                  onSubmitEditing={() => sendText(draft)}
+                  multiline
+                  editable={!sending}
+                />
+                <TouchableOpacity
+                  style={[styles.iconBtn, { borderColor: colors.hair }]}
+                  onPress={startRecording}
+                  disabled={sending}
+                >
+                  <Ionicons name="mic-outline" size={20} color={colors.ink} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.iconBtn,
+                    { backgroundColor: draft.trim() && !sending ? colors.ink : colors.ink4, borderWidth: 0 },
+                  ]}
+                  onPress={() => sendText(draft)}
+                  disabled={!draft.trim() || sending}
+                >
+                  <Ionicons name="arrow-up" size={20} color={colors.paper} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.iconBtn, { borderColor: colors.hair }]}
+                  onPress={() => router.push('/ai-settings' as any)}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open AI settings"
+                >
+                  <Ionicons name="settings-outline" size={20} color={colors.ink} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
-      </SafeAreaView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
-function Bubble({ message, colors }: { message: UiMessage; colors: any }) {
+function Bubble({
+  message,
+  colors,
+  savedGenerated,
+  onSaveGeneratedItem,
+}: {
+  message: UiMessage;
+  colors: any;
+  savedGenerated: Record<string, boolean>;
+  onSaveGeneratedItem: (text: string, kind: SavedPhraseKind) => Promise<void>;
+}) {
   const isUser = message.role === 'user';
+  const listItems = !isUser && message.listKind ? parseMarkdownListItems(message.content) : [];
+
   return (
     <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi, {
       backgroundColor: isUser ? colors.ink : colors.paper2,
       alignSelf: isUser ? 'flex-end' : 'flex-start',
+      maxWidth: listItems.length ? '100%' : '85%',
     }]}>
       {message.audio ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
@@ -319,12 +427,71 @@ function Bubble({ message, colors }: { message: UiMessage; colors: any }) {
             Voice question{message.audioMs ? ` · ${Math.round(message.audioMs / 1000)}s` : ''}
           </Text>
         </View>
+      ) : listItems.length > 0 && message.listKind ? (
+        <View style={styles.generatedList}>
+          {listItems.map((item, index) => {
+            const key = savedItemKey(item, message.listKind!);
+            const saved = !!savedGenerated[key];
+            return (
+              <View key={`${index}-${item.slice(0, 16)}`} style={[styles.generatedListItem, { borderColor: colors.hair, backgroundColor: colors.paper }]}>
+                <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>{index + 1}</Text>
+                <Text style={[styles.generatedItemText, { color: colors.ink }]}>
+                  {parseBoldSegments(item).map((segment, segmentIndex) => (
+                    <Text
+                      key={`${segmentIndex}-${segment.text}`}
+                      style={segment.bold ? { fontWeight: '700', color: colors.ink } : { color: colors.ink }}
+                    >
+                      {segment.text}
+                    </Text>
+                  ))}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => onSaveGeneratedItem(stripMarkdown(item), message.listKind!)}
+                  disabled={saved}
+                  style={[
+                    styles.addItemBtn,
+                    { borderColor: colors.hair, backgroundColor: saved ? colors.ink : colors.paper },
+                  ]}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={saved ? 'Saved' : 'Save item'}
+                >
+                  <Ionicons name={saved ? 'checkmark' : 'add'} size={16} color={saved ? colors.paper : colors.ink} />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </View>
       ) : (
-        <Text style={[Typography.bodyMedium, { color: isUser ? colors.paper : colors.ink }]}>
-          {message.content}
-        </Text>
+        <FormattedMessageText content={message.content} isUser={isUser} colors={colors} />
       )}
     </View>
+  );
+}
+
+function FormattedMessageText({
+  content,
+  isUser,
+  colors,
+}: {
+  content: string;
+  isUser: boolean;
+  colors: any;
+}) {
+  const segments = parseBoldSegments(content);
+  const color = isUser ? colors.paper : colors.ink;
+
+  return (
+    <Text style={[Typography.bodyMedium, { color }]}>
+      {segments.map((segment, index) => (
+        <Text
+          key={`${index}-${segment.text}`}
+          style={segment.bold ? { fontWeight: '700', color } : { color }}
+        >
+          {segment.text}
+        </Text>
+      ))}
+    </Text>
   );
 }
 
@@ -355,32 +522,288 @@ function guessAudioMimeType(uri: string): string {
   return 'audio/mp4';
 }
 
+function parseBoldSegments(text: string): { text: string; bold: boolean }[] {
+  const segments: { text: string; bold: boolean }[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ text: text.slice(lastIndex, match.index), bold: false });
+    }
+    segments.push({ text: match[1], bold: true });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ text: text.slice(lastIndex), bold: false });
+  }
+
+  return segments.length ? segments : [{ text, bold: false }];
+}
+
+function parseMarkdownListItems(text: string): string[] {
+  const lines = text.split('\n');
+  const items: string[] = [];
+  let current: string[] = [];
+
+  for (const line of lines) {
+    const match = line.match(/^\s*(?:[-*+]\s+|\d+[.)]\s+)(.+)$/);
+    if (match) {
+      if (current.length) items.push(current.join(' ').trim());
+      current = [match[1].trim()];
+    } else if (current.length && line.trim()) {
+      current.push(line.trim());
+    } else if (current.length) {
+      items.push(current.join(' ').trim());
+      current = [];
+    }
+  }
+
+  if (current.length) items.push(current.join(' ').trim());
+  return items.filter(Boolean);
+}
+
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function savedItemKey(text: string, kind: SavedPhraseKind): string {
+  return `${kind}:${stripMarkdown(text).toLowerCase()}`;
+}
+
+function inferSavedKind(history: UiMessage[]): SavedPhraseKind | undefined {
+  const last = lastUserMessage(history);
+  if (last.includes('keyword') || last.includes('vocabular')) return 'vocabulary';
+  if (last.includes('grammar') || last.includes('phrase')) return 'phrase';
+  return undefined;
+}
+
+function buildPromptSuggestions(): PromptSuggestion[] {
+  return [
+    {
+      label: 'Summarize the video',
+      prompt: 'Summarize the main ideas in this video. Keep it concise and easy to remember.',
+      align: 'right',
+    },
+    {
+      label: 'List of keywords',
+      prompt:
+        'Create a numbered list of 10 key vocabulary words from this video. Put each vocabulary item on its own numbered list line. For each word, use exactly this format: **word** /pronunciation/ part of speech - meaning. Keep each explanation short and useful for an English learner.',
+      wide: true,
+      align: 'right',
+    },
+    {
+      label: 'List of grammars or phrases',
+      prompt:
+        'Create a numbered list of 5 grammatical phrases or useful phrases from the transcript. Put each phrase on its own numbered list line. For each phrase, use this format: **phrase** - what it is used for in one sentence. Transcript: "exact transcript sentence that uses this phrase".',
+      wide: true,
+      align: 'right',
+    },
+  ];
+}
+
+function lastUserMessage(messages: UiMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return messages[i].content.toLowerCase();
+  }
+  return '';
+}
+
+function buildFollowUpSuggestions(context: AiContext, messages: UiMessage[]): PromptSuggestion[] {
+  const last = lastUserMessage(messages);
+
+  if (last.includes('quiz')) {
+    return [
+      { label: 'Give me a hint', prompt: 'Give me a small hint, but do not reveal the full answer yet.' },
+      { label: 'Show the answer', prompt: 'Show the answer and explain why it is correct.' },
+      { label: 'Ask another one', prompt: 'Ask me another question from this video.' },
+    ];
+  }
+
+  if (last.includes('summarize') || last.includes('main ideas')) {
+    return [
+      { label: '3 takeaways', prompt: 'Turn that summary into 3 memorable takeaways.' },
+      { label: 'Make flashcards', prompt: 'Make a few flashcards from the key ideas.' },
+      { label: 'Quiz me on it', prompt: 'Quiz me on the summary, one question at a time.' },
+    ];
+  }
+
+  if (last.includes('explain') || last.includes('mean')) {
+    return [
+      { label: 'Give examples', prompt: 'Give me 3 natural example sentences for that idea or phrase.' },
+      { label: 'Simpler version', prompt: 'Explain it again in simpler English.' },
+      { label: 'Pronunciation tips', prompt: 'Give pronunciation or listening tips for this phrase.' },
+    ];
+  }
+
+  const prompts: PromptSuggestion[] = [
+    { label: 'Go deeper', prompt: 'Go one level deeper and explain the most useful detail.' },
+    { label: 'Make it practical', prompt: 'How can I use this idea or phrase in real conversation?' },
+    { label: 'Quiz me', prompt: 'Quiz me on what we just discussed.' },
+  ];
+
+  if (context.transcriptWindow) {
+    prompts.push({
+      label: 'Back to transcript',
+      prompt: 'Use the nearby transcript and point out what I should listen for next.',
+    });
+  }
+
+  return prompts.slice(0, 3);
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  shell: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: Radius.xxxl,
+    overflow: 'hidden',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing.xxxl,
-    paddingTop: Spacing.sm,
+    paddingHorizontal: 28,
+    paddingTop: 22,
+    paddingBottom: Spacing.xxxl,
   },
-  headerBtn: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingVertical: Spacing.sm },
+  title: {
+    fontFamily: Typography.headingLarge.fontFamily,
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 28,
+    flex: 1,
+    paddingRight: Spacing.xxxl,
+  },
+  closeBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   selectionBanner: {
-    marginHorizontal: Spacing.screen,
-    marginTop: Spacing.md,
-    padding: Spacing.xl,
+    marginHorizontal: 28,
+    padding: Spacing.lg,
     borderRadius: Radius.xl,
     borderWidth: 1,
   },
   scroll: { flex: 1 },
-  scrollContent: { padding: Spacing.screen, gap: Spacing.lg, paddingBottom: Spacing.massive },
-  emptyBox: {
-    padding: Spacing.massive,
+  scrollContent: {
+    paddingHorizontal: 30,
+    paddingTop: Spacing.xxxl,
+    gap: Spacing.lg,
+    paddingBottom: Spacing.massive,
+  },
+  starter: {
+    gap: 18,
+  },
+  sparkle: {
+    fontSize: 30,
+    lineHeight: 34,
+  },
+  greeting: {
+    fontFamily: Typography.heading.fontFamily,
+    fontSize: 17,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  promptIntro: {
+    fontFamily: Typography.heading.fontFamily,
+    fontSize: 16,
+    lineHeight: 23,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+  suggestionList: {
+    gap: Spacing.md,
+    paddingTop: Spacing.xs,
+  },
+  suggestionChip: {
+    alignSelf: 'flex-start',
     borderWidth: 1,
-    borderStyle: 'dashed',
+    borderRadius: Radius.pill,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    maxWidth: '100%',
+  },
+  suggestionChipWide: {
+    borderRadius: Radius.xxxl,
+    maxWidth: '96%',
+  },
+  suggestionRight: {
+    alignSelf: 'flex-end',
+  },
+  suggestionCenter: {
+    alignSelf: 'center',
+  },
+  suggestionText: {
+    fontFamily: Typography.headingSmall.fontFamily,
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '500',
+  },
+  followUpBlock: {
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  followUpLabel: {
+    ...Typography.marker,
+  },
+  followUpList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  followUpChip: {
+    borderWidth: 1,
+    borderRadius: Radius.pill,
+    paddingHorizontal: Spacing.xxxl,
+    paddingVertical: Spacing.md,
+    maxWidth: '100%',
+  },
+  followUpText: {
+    fontFamily: Typography.bodyMedium.fontFamily,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  generatedList: {
+    gap: Spacing.md,
+    alignSelf: 'stretch',
+  },
+  generatedListItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.md,
+    borderWidth: 1,
     borderRadius: Radius.xl,
+    padding: Spacing.md,
+  },
+  generatedIndex: {
+    ...Typography.monoSmall,
+    width: 18,
+    paddingTop: 3,
+    textAlign: 'right',
+  },
+  generatedItemText: {
+    flex: 1,
+    ...Typography.bodyMedium,
+  },
+  addItemBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: Radius.circle,
+    borderWidth: 1,
     alignItems: 'center',
-    marginTop: Spacing.huge,
+    justifyContent: 'center',
   },
   bubble: {
     maxWidth: '85%',

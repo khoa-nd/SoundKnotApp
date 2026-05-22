@@ -34,6 +34,23 @@ interface IncomingAudio {
   mimeType?: unknown;
 }
 
+interface TranscriptLineInput {
+  text?: unknown;
+  start?: unknown;
+  duration?: unknown;
+}
+
+interface SplitTranscriptBody {
+  videoId?: unknown;
+  transcript?: unknown;
+}
+
+interface SplitTranscriptSegment {
+  text?: unknown;
+  start?: unknown;
+  duration?: unknown;
+}
+
 function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -51,6 +68,163 @@ function approxBase64ByteLength(b64: string): number {
   const padding = b64.endsWith("==") ? 2 : b64.endsWith("=") ? 1 : 0;
   return Math.floor((len * 3) / 4) - padding;
 }
+
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function parseSplitSegments(reply: string): Array<{ text: string; start: number; duration: number }> | null {
+  const cleaned = reply
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) return null;
+
+  const segments: Array<{ text: string; start: number; duration: number }> = [];
+  for (const item of parsed as SplitTranscriptSegment[]) {
+    if (!isObject(item)) return null;
+    if (typeof item.text !== "string") return null;
+    if (typeof item.start !== "number" || !Number.isFinite(item.start)) return null;
+    if (typeof item.duration !== "number" || !Number.isFinite(item.duration)) return null;
+    const text = normalizeWhitespace(item.text);
+    if (!text) continue;
+    segments.push({ text, start: Math.max(0, item.start), duration: Math.max(0.5, item.duration) });
+  }
+
+  return segments.length > 0 ? segments : null;
+}
+
+ai.post("/split-transcript", async (c) => {
+  const userId = c.get("userId");
+  const startedAt = Date.now();
+
+  if (!c.env.GEMINI_API_KEY) {
+    console.error("POST /ai/split-transcript misconfigured: GEMINI_API_KEY is not set");
+    return c.json(
+      { error: "AI service is not configured. Please contact support." },
+      500
+    );
+  }
+
+  const rateLimit = parseIntEnv(
+    c.env.AI_RATE_LIMIT_PER_USER_PER_MINUTE,
+    DEFAULT_RATE_LIMIT_PER_MINUTE
+  );
+  const rl = checkRateLimit(userId, rateLimit);
+  if (!rl.allowed) {
+    return c.json(
+      { error: `You're sending requests too quickly. Please wait ${rl.retryAfterSeconds}s and try again.` },
+      429,
+      { "Retry-After": String(rl.retryAfterSeconds) }
+    );
+  }
+
+  let body: SplitTranscriptBody;
+  try {
+    body = await c.req.json<SplitTranscriptBody>();
+  } catch {
+    return c.json({ error: "Request body must be valid JSON." }, 400);
+  }
+
+  if (typeof body.videoId !== "string" || body.videoId.trim().length === 0) {
+    return c.json({ error: "videoId is required." }, 400);
+  }
+  if (!Array.isArray(body.transcript) || body.transcript.length === 0) {
+    return c.json({ error: "transcript must be a non-empty array." }, 400);
+  }
+
+  const transcript: Array<{ text: string; start: number; duration: number }> = [];
+  for (let i = 0; i < body.transcript.length; i++) {
+    const raw = body.transcript[i] as TranscriptLineInput;
+    if (!isObject(raw)) {
+      return c.json({ error: `transcript[${i}] must be an object.` }, 400);
+    }
+    if (typeof raw.text !== "string" || raw.text.trim().length === 0) {
+      return c.json({ error: `transcript[${i}].text must be a non-empty string.` }, 400);
+    }
+    if (typeof raw.start !== "number" || !Number.isFinite(raw.start)) {
+      return c.json({ error: `transcript[${i}].start must be a finite number.` }, 400);
+    }
+    if (typeof raw.duration !== "number" || !Number.isFinite(raw.duration)) {
+      return c.json({ error: `transcript[${i}].duration must be a finite number.` }, 400);
+    }
+    transcript.push({
+      text: normalizeWhitespace(raw.text),
+      start: raw.start,
+      duration: raw.duration,
+    });
+  }
+
+  const transcriptText = transcript
+    .map((line) => `[${line.start.toFixed(2)}-${(line.start + line.duration).toFixed(2)}] ${line.text}`)
+    .join("\n");
+
+  const result = await callGemini({
+    apiKey: c.env.GEMINI_API_KEY,
+    model: "gemini-1.5-flash",
+    temperature: 0.1,
+    maxOutputTokens: 8192,
+    systemPrompt:
+      "You split English YouTube transcripts into practice-ready segments for language learners. Return only valid JSON. No markdown, no comments.",
+    messages: [
+      {
+        role: "user",
+        content:
+          `Split this transcript into appropriate-length spoken English practice segments. ` +
+          `Each segment must contain only a full number of English sentences: exactly 1, 2, or 3 complete sentences. Never return 1.5 or 2.5 sentences, and never cut a sentence across segments. ` +
+          `Target 30-40 words per segment. If a single sentence has 30-40 words or more, keep it as one segment. If sentences are shorter, combine 2 or 3 consecutive full sentences only when the combined segment stays within about 30-40 words. ` +
+          `Preserve transcript order. Preserve approximate timing by using the first source timestamp in the segment as start and the last source timestamp end minus start as duration. ` +
+          `Return a JSON array of objects with exactly these keys: text, start, duration.\n\n${transcriptText}`,
+      },
+    ],
+  });
+
+  const latencyMs = Date.now() - startedAt;
+
+  if (!result.ok) {
+    console.log(
+      JSON.stringify({
+        event: "ai_split_transcript",
+        user_id: userId,
+        video_id: body.videoId,
+        fragments: transcript.length,
+        latency_ms: latencyMs,
+        upstream_status: result.upstreamStatus,
+        outcome: "error",
+        status: result.status,
+      })
+    );
+    return c.json({ error: result.error }, result.status);
+  }
+
+  const segments = parseSplitSegments(result.reply);
+  if (!segments) {
+    return c.json({ error: "AI returned an invalid transcript split. Please try again." }, 502);
+  }
+
+  console.log(
+    JSON.stringify({
+      event: "ai_split_transcript",
+      user_id: userId,
+      video_id: body.videoId,
+      fragments: transcript.length,
+      segments: segments.length,
+      latency_ms: latencyMs,
+      upstream_status: result.upstreamStatus,
+      outcome: "ok",
+    })
+  );
+
+  return c.json({ lines: segments });
+});
 
 ai.post("/chat", async (c) => {
   const userId = c.get("userId");

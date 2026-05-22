@@ -1,0 +1,1637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>SoundKnot — Technical Documentation</title>
+<style>
+  :root {
+    --paper: #f4f3ef;
+    --paper2: #ecead2;
+    --ink: #2a2522;
+    --ink2: #4a4440;
+    --ink3: #7a756f;
+    --ink4: #9e9990;
+    --hair: rgba(42, 37, 34, 0.10);
+    --hair2: rgba(42, 37, 34, 0.06);
+    --accent: #e8913a;
+    --accentSoft: rgba(232, 145, 58, 0.14);
+    --accentInk: #7a3d0a;
+    --positive: #00897b;
+    --negative: #e53935;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Inter", system-ui, sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+    line-height: 1.6;
+  }
+  h1 { font-size: 32px; letter-spacing: -0.02em; margin: 0 0 4px; }
+  h2 {
+    font-size: 22px;
+    margin-top: 48px;
+    padding-top: 28px;
+    border-top: 1px solid var(--hair);
+    letter-spacing: -0.01em;
+  }
+  h3 { font-size: 17px; color: var(--ink2); margin-top: 30px; margin-bottom: 8px; }
+  h4 { font-size: 14px; color: var(--ink2); margin-top: 22px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+  p { margin: 8px 0; }
+  .subtitle { color: var(--ink3); font-size: 14px; margin-bottom: 32px; }
+  .doc-meta {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--ink3);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .part-banner {
+    background: var(--accentSoft);
+    color: var(--accentInk);
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin: 32px 0 8px;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .badge {
+    display: inline-block;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--paper2);
+    color: var(--ink2);
+    margin-right: 6px;
+  }
+  code {
+    background: var(--paper2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  pre {
+    background: var(--paper2);
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    overflow-x: auto;
+    line-height: 1.5;
+    font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  pre code { background: transparent; padding: 0; }
+  ul, ol { padding-left: 24px; }
+  li { margin: 4px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0 16px; font-size: 14px; }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--hair);
+    vertical-align: top;
+  }
+  th {
+    color: var(--ink3);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 11px;
+    background: var(--paper2);
+  }
+  td code { font-size: 12px; }
+  hr { border: 0; border-top: 1px solid var(--hair); margin: 32px 0; }
+  blockquote {
+    border-left: 3px solid var(--accent);
+    background: var(--paper2);
+    padding: 10px 14px;
+    margin: 10px 0;
+    border-radius: 4px;
+    color: var(--ink2);
+  }
+  .toc {
+    background: var(--paper2);
+    padding: 18px 22px;
+    border-radius: 10px;
+    margin: 24px 0 32px;
+  }
+  .toc ol { margin: 4px 0; padding-left: 22px; }
+  .toc a { color: var(--ink2); text-decoration: none; }
+  .toc a:hover { color: var(--accent); }
+  a { color: var(--accentInk); }
+  .ascii {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px;
+    white-space: pre;
+    background: var(--paper2);
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    line-height: 1.4;
+  }
+  small { color: var(--ink3); }
+</style>
+</head>
+<body>
+
+<div class="doc-meta">SoundKnot · Technical Documentation</div>
+<h1>SoundKnot</h1>
+<p class="subtitle">Combined technical reference — Backend (Cloudflare Worker API + Supabase) and Frontend (Expo React Native app).</p>
+
+<div class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#part-1">Part 1 — Backend / API</a>
+      <ol>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#repositories">Repositories</a></li>
+        <li><a href="#db-schema">Database Schema (Supabase)</a></li>
+        <li><a href="#api">API (Cloudflare Worker)</a></li>
+      </ol>
+    </li>
+    <li><a href="#part-2">Part 2 — Frontend / App</a>
+      <ol>
+        <li><a href="#project-overview">Project Overview</a></li>
+        <li><a href="#tech-stack">Tech Stack</a></li>
+        <li><a href="#directory-structure">Directory Structure</a></li>
+        <li><a href="#design-system">Design System</a></li>
+        <li><a href="#component-library">Component Library</a></li>
+        <li><a href="#screen-flow">Screen Flow &amp; Navigation</a></li>
+        <li><a href="#state-management">State Management</a></li>
+        <li><a href="#types">Types &amp; Data Models</a></li>
+        <li><a href="#services-hooks">Services &amp; Hooks</a></li>
+        <li><a href="#algorithms">Key Algorithms</a></li>
+        <li><a href="#configuration">Configuration</a></li>
+        <li><a href="#platform-support">Platform Support</a></li>
+        <li><a href="#dev-guide">Development Guide</a></li>
+      </ol>
+    </li>
+    <li><a href="#part-4">Part 4 — AI Service Integration</a>
+      <ol>
+        <li><a href="#ai-overview">AI Overview &amp; Surfaces</a></li>
+        <li><a href="#ai-providers">Providers, Modes &amp; Models</a></li>
+        <li><a href="#ai-split">Sequence — AI Transcript Splitting</a></li>
+        <li><a href="#ai-chat">Sequence — AI Tutor Chat (Text + Voice)</a></li>
+        <li><a href="#ai-context">Context Assembly &amp; System Prompts</a></li>
+        <li><a href="#ai-safety">Safety, Rate Limits &amp; Observability</a></li>
+        <li><a href="#ai-fallbacks">Failure Modes &amp; Fallbacks</a></li>
+      </ol>
+    </li>
+    <li><a href="#deployment">Part 5 — Deployment</a></li>
+  </ol>
+</div>
+
+<div class="part-banner" id="part-1">Part 1 · Backend / API</div>
+
+<h2 id="architecture">Architecture</h2>
+<div class="ascii">[Expo App (React Native)]
+        │
+        │ HTTPS + Bearer JWT
+        ▼
+[Cloudflare Worker (Hono)]
+        │
+        │ supabase-js (service_role)
+        ▼
+[Supabase Auth + PostgreSQL]</div>
+
+<ul>
+  <li>The app never talks to Supabase directly — the CF Worker is the sole API proxy</li>
+  <li>Supabase Auth handles email/password authentication</li>
+  <li>The CF Worker validates JWTs via <code>supabase.auth.getUser(token)</code></li>
+  <li>AsyncStorage on the app persists JWT for session restoration on launch</li>
+</ul>
+
+<h2 id="repositories">Repositories</h2>
+<table>
+  <thead><tr><th>Repo</th><th>Path</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>SoundKnotAPI</td><td><code>/Users/khoanguyen/Documents/SoundKnotAPI</code></td><td>Cloudflare Worker API</td></tr>
+    <tr><td>SoundKnotApp</td><td><code>/Users/khoanguyen/Documents/SoundKnotApp</code></td><td>Expo React Native app</td></tr>
+  </tbody>
+</table>
+
+<h2 id="db-schema">Database Schema (Supabase PostgreSQL)</h2>
+<p>Migration file: <code>specs/migration.sql</code></p>
+
+<h3>Tables</h3>
+
+<h4><code>profiles</code></h4>
+<p>Extends <code>auth.users</code> — created automatically via trigger on signup.</p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>id</td><td>UUID (PK)</td><td></td><td>References auth.users(id), ON DELETE CASCADE</td></tr>
+    <tr><td>display_name</td><td>TEXT</td><td></td><td>From signup metadata or email prefix</td></tr>
+    <tr><td>interests</td><td>TEXT[]</td><td>'{}'</td><td>User interest tags</td></tr>
+    <tr><td>level</td><td>TEXT</td><td>'beginner'</td><td>beginner / intermediate / advanced / master</td></tr>
+    <tr><td>created_at</td><td>TIMESTAMPTZ</td><td>now()</td><td></td></tr>
+    <tr><td>updated_at</td><td>TIMESTAMPTZ</td><td>now()</td><td>Auto-updated via trigger</td></tr>
+  </tbody>
+</table>
+
+<h4><code>user_videos</code></h4>
+<p>YouTube videos a user has added to their library.</p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>id</td><td>UUID (PK)</td><td>gen_random_uuid()</td><td></td></tr>
+    <tr><td>user_id</td><td>UUID (FK)</td><td></td><td>References auth.users(id)</td></tr>
+    <tr><td>youtube_video_id</td><td>TEXT</td><td></td><td>YouTube video ID (11 chars)</td></tr>
+    <tr><td>title</td><td>TEXT</td><td></td><td>Video title</td></tr>
+    <tr><td>channel</td><td>TEXT</td><td></td><td>Channel name</td></tr>
+    <tr><td>thumbnail_url</td><td>TEXT</td><td></td><td>Thumbnail image URL</td></tr>
+    <tr><td>added_at</td><td>TIMESTAMPTZ</td><td>now()</td><td></td></tr>
+  </tbody>
+</table>
+<ul><li><strong>UNIQUE constraint</strong>: <code>(user_id, youtube_video_id)</code> — enables upsert</li></ul>
+
+<h4><code>practice_sessions</code></h4>
+<p>Individual practice session records.</p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>id</td><td>UUID (PK)</td><td>gen_random_uuid()</td><td></td></tr>
+    <tr><td>user_id</td><td>UUID (FK)</td><td></td><td>References auth.users(id)</td></tr>
+    <tr><td>video_id</td><td>UUID (FK)</td><td></td><td>References user_videos(id)</td></tr>
+    <tr><td>segment</td><td>TEXT</td><td></td><td>Which segment was practiced</td></tr>
+    <tr><td>pass</td><td>INT</td><td>1</td><td>Number of recall passes</td></tr>
+    <tr><td>mastery</td><td>REAL</td><td>0</td><td>Mastery score 0–1</td></tr>
+    <tr><td>accuracy</td><td>REAL</td><td>0</td><td>Dictation accuracy 0–1</td></tr>
+    <tr><td>listened_seconds</td><td>INT</td><td>0</td><td>Total seconds listened</td></tr>
+    <tr><td>created_at</td><td>TIMESTAMPTZ</td><td>now()</td><td></td></tr>
+  </tbody>
+</table>
+
+<h4><code>user_progress</code></h4>
+<p>Aggregated stats per user — created automatically via trigger on signup.</p>
+<table>
+  <thead><tr><th>Column</th><th>Type</th><th>Default</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>id</td><td>UUID (PK)</td><td></td><td>References auth.users(id), ON DELETE CASCADE</td></tr>
+    <tr><td>current_streak</td><td>INT</td><td>0</td><td>Consecutive days practiced</td></tr>
+    <tr><td>longest_streak</td><td>INT</td><td>0</td><td>All-time longest streak</td></tr>
+    <tr><td>total_minutes</td><td>INT</td><td>0</td><td>Cumulative listening minutes</td></tr>
+    <tr><td>total_sessions</td><td>INT</td><td>0</td><td>Total practice sessions</td></tr>
+    <tr><td>last_session_date</td><td>DATE</td><td></td><td>For streak calculation</td></tr>
+    <tr><td>updated_at</td><td>TIMESTAMPTZ</td><td>now()</td><td>Auto-updated via trigger</td></tr>
+  </tbody>
+</table>
+
+<h3>Triggers</h3>
+<ul>
+  <li><code>on_auth_user_created</code> — Fires after insert on <code>auth.users</code>. Auto-creates a <code>profiles</code> row (display_name from metadata or email prefix) and a <code>user_progress</code> row.</li>
+  <li><code>profiles_updated_at</code> — Auto-sets <code>updated_at</code> on profile update.</li>
+  <li><code>user_progress_updated_at</code> — Auto-sets <code>updated_at</code> on progress update.</li>
+</ul>
+
+<h3>Row Level Security (RLS)</h3>
+<p>All tables have RLS enabled. Policies:</p>
+<ul>
+  <li>Users can SELECT/UPDATE/INSERT/DELETE their own rows (scoped by <code>auth.uid()</code>)</li>
+  <li>Service role (<code>auth.role() = 'service_role'</code>) has full access (used by CF Worker)</li>
+</ul>
+
+<h2 id="api">API (Cloudflare Worker)</h2>
+<p><strong>Base URL</strong>: <code>https://soundknot-api.ndkhoa-is.workers.dev</code></p>
+
+<h3>Stack</h3>
+<ul>
+  <li><strong>Runtime</strong>: Cloudflare Workers</li>
+  <li><strong>Framework</strong>: Hono v4</li>
+  <li><strong>Database client</strong>: @supabase/supabase-js v2 (admin/service_role)</li>
+  <li><strong>Build tool</strong>: Wrangler v4</li>
+</ul>
+
+<h3>File Structure</h3>
+<pre><code>soundknot-api/
+  wrangler.toml              # CF config, secrets reference
+  package.json
+  tsconfig.json
+  src/
+    index.ts                 # Hono app, CORS, route registration
+    middleware/auth.ts       # Bearer token validation → sets userId on context
+    routes/auth.ts           # /auth/* endpoints
+    routes/videos.ts         # /videos/* endpoints
+    routes/sessions.ts       # /sessions/* endpoints
+    routes/home.ts           # /home endpoint
+    routes/ai.ts             # /ai/chat endpoint (Gemini proxy)
+    lib/supabase.ts          # Supabase admin client factory + Env type
+    lib/time.ts              # Timezone helpers
+    lib/aiSystemPrompt.ts    # Builds system prompt from video context
+    lib/gemini.ts            # Gemini REST client (text + audio inlineData)
+    lib/rateLimit.ts         # Per-user sliding-window rate limiter (in-memory)</code></pre>
+
+<h3>Environment / Secrets</h3>
+<p>Set via <code>wrangler secret put &lt;NAME&gt;</code>:</p>
+<table>
+  <thead><tr><th>Secret</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>SUPABASE_URL</td><td>Supabase project URL</td></tr>
+    <tr><td>SUPABASE_SERVICE_ROLE_KEY</td><td>Supabase service role key (admin access)</td></tr>
+    <tr><td>SUPABASE_JWT_SECRET</td><td>JWT secret for token validation</td></tr>
+    <tr><td>GEMINI_API_KEY</td><td>Google AI Studio key used by <code>/ai/chat</code></td></tr>
+  </tbody>
+</table>
+
+<p>Optional <code>[vars]</code> (set in <code>wrangler.toml</code>, override defaults):</p>
+<table>
+  <thead><tr><th>Var</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>AI_RATE_LIMIT_PER_USER_PER_MINUTE</td><td>20</td><td>Per-user sliding window for <code>/ai/chat</code></td></tr>
+    <tr><td>AI_MAX_AUDIO_BYTES</td><td>2097152 (2 MB)</td><td>Hard cap on a single voice attachment</td></tr>
+  </tbody>
+</table>
+
+<h3>Auth Middleware</h3>
+<p><code>src/middleware/auth.ts</code> — Extracts <code>Bearer &lt;token&gt;</code> from Authorization header, calls <code>supabase.auth.getUser(token)</code> to validate. On success, sets <code>c.set("userId", user.id)</code>. Returns 401 on failure.</p>
+
+<h3>Endpoints</h3>
+
+<h4>Auth (no auth required for register/login)</h4>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Request Body</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td><code>/auth/register</code></td><td>No</td><td><code>{ email, password, display_name? }</code></td><td><code>{ session, user }</code></td></tr>
+    <tr><td>POST</td><td><code>/auth/login</code></td><td>No</td><td><code>{ email, password }</code></td><td><code>{ session, user }</code></td></tr>
+    <tr><td>POST</td><td><code>/auth/logout</code></td><td>Yes</td><td>—</td><td><code>{ message: "Logged out" }</code></td></tr>
+    <tr><td>GET</td><td><code>/auth/me</code></td><td>Yes</td><td>—</td><td><code>{ profile, progress }</code></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Register uses <code>supabase.auth.admin.createUser()</code> with <code>email_confirm: true</code> (no email verification), then auto-signs in</li>
+  <li>Login uses <code>supabase.auth.signInWithPassword()</code></li>
+</ul>
+
+<h4>Videos (all require auth)</h4>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Request Body</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/videos</code></td><td>—</td><td><code>{ videos: UserVideo[] }</code> (ordered by added_at DESC)</td></tr>
+    <tr><td>POST</td><td><code>/videos</code></td><td><code>{ youtube_video_id, title?, channel?, thumbnail_url? }</code></td><td><code>{ video: UserVideo }</code> (upsert on user_id + youtube_video_id)</td></tr>
+    <tr><td>GET</td><td><code>/videos/:id/sessions</code></td><td>—</td><td><code>{ sessions: PracticeSession[] }</code></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>POST <code>/videos</code> auto-fetches title / channel / thumbnail from YouTube oEmbed (<code>https://www.youtube.com/oembed?url=...&amp;format=json</code>) when any of those fields is missing in the request body, so the app no longer needs to scrape metadata client-side</li>
+</ul>
+
+<h4>Sessions (all require auth)</h4>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Request Body</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td><code>/sessions</code></td><td><code>{ video_id, segment?, pass?, mastery?, accuracy?, listened_seconds?, tz? }</code></td><td><code>{ session: PracticeSession }</code></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Validates that <code>video_id</code> belongs to the authenticated user before insert</li>
+  <li>Optional <code>tz</code> is an IANA timezone (e.g. <code>Asia/Ho_Chi_Minh</code>) used for streak day calculation; falls back to UTC if not provided</li>
+  <li>Also updates <code>user_progress</code>: increments total_sessions, adds listened minutes, calculates streak in the user's timezone (checks if last_session_date was yesterday to continue streak, same day = no change, otherwise resets to 1)</li>
+  <li>Extensive request/error logging for debugging session persistence</li>
+</ul>
+
+<h4>Home (requires auth)</h4>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/home</code></td><td><code>{ progress, todaySessions, recentKnots, videos }</code></td></tr>
+  </tbody>
+</table>
+<ul><li>Runs 4 parallel queries: user_progress, today's sessions (with video join), recent 10 sessions (with video join), recent 10 videos</li></ul>
+
+<h4>AI Tutor (requires auth)</h4>
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Request Body</th><th>Response</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td><code>/ai/chat</code></td><td><code>{ provider: "gemini", model, messages: [{ role, content, audio? }], context? }</code></td><td><code>{ reply }</code> on 200, <code>{ error }</code> otherwise</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>Strict provider allowlist: only <code>"gemini"</code> is accepted today (returns 400 for anything else)</li>
+  <li><code>messages[].audio</code> carries voice questions: <code>{ base64, mimeType }</code>. Gemini transcribes and answers in one round-trip via <code>inlineData</code> parts</li>
+  <li><code>context</code> (optional) carries <code>videoTitle</code>, <code>videoChannel</code>, <code>videoId</code>, <code>transcriptWindow</code>, <code>selection</code> — used to build the system prompt server-side; empty/null fields are skipped cleanly</li>
+  <li>Per-user sliding-window rate limit (default 20/min) returns 429 with a <code>Retry-After</code> header. In-memory and per-isolate (best-effort)</li>
+  <li>Audio cap (default 2 MB base64) returns 413</li>
+  <li>Upstream error mapping: Gemini 429 → 429; other Gemini 4xx/5xx, network errors, empty replies, or safety blocks → 502</li>
+  <li>Logs <code>{ user_id, provider, model, messages_length, audio_count, latency_ms, upstream_status, outcome }</code> per request — never logs message content, audio, or transcript</li>
+  <li>Spec: <code>specs/api-handoff-ai-chat.md</code></li>
+</ul>
+
+<h3>CORS</h3>
+<p>Configured to accept all origins (<code>*</code>) with methods GET, POST, PUT, DELETE, OPTIONS and headers Content-Type, Authorization.</p>
+
+<div class="part-banner" id="part-2">Part 2 · Frontend / App (Sound Knot V2)</div>
+
+<h2 id="project-overview">1. Project Overview</h2>
+<p>Sound Knot is an English listening practice app built with Expo (React Native) and runs on <strong>iOS, Android, and the web</strong>. The core philosophy: <strong>"Work hard now, listen smart later."</strong> Users accumulate deliberate listening hours by engaging with authentic expert content (podcasts, lectures, conversations), using active recall and dictation to build deep comprehension.</p>
+
+<h3>Design Origin</h3>
+<p>The V2 design was prototyped in HTML/JSX at <code>design/SoundKnotAppV2Design/</code> and translated into this React Native codebase. The design system is documented in <code>design/SoundKnotAppDesignV2.pdf</code>.</p>
+
+<h2 id="tech-stack">2. Tech Stack</h2>
+<table>
+  <thead><tr><th>Layer</th><th>Technology</th><th>Version</th></tr></thead>
+  <tbody>
+    <tr><td>Framework</td><td>Expo SDK</td><td>~54.0.33</td></tr>
+    <tr><td>UI</td><td>React Native</td><td>0.81.5</td></tr>
+    <tr><td>Web</td><td>React DOM + react-native-web</td><td>19.1 / ~0.21</td></tr>
+    <tr><td>Language</td><td>TypeScript</td><td>~5.9</td></tr>
+    <tr><td>Navigation</td><td>Expo Router (file-based)</td><td>~6.0</td></tr>
+    <tr><td>State</td><td>Zustand</td><td>^5.0</td></tr>
+    <tr><td>Auth storage</td><td>@react-native-async-storage/async-storage</td><td>2.1.2</td></tr>
+    <tr><td>Audio (native)</td><td>expo-av</td><td>~15.0</td></tr>
+    <tr><td>Video (native)</td><td>react-native-youtube-iframe</td><td>^2.4.1</td></tr>
+    <tr><td>Video (web)</td><td>YouTube IFrame embed + postMessage API</td><td>—</td></tr>
+    <tr><td>WebView (native)</td><td>react-native-webview</td><td>13.15.0</td></tr>
+    <tr><td>Transcript</td><td>youtube-transcript</td><td>^1.3.1</td></tr>
+    <tr><td>Icons</td><td>@expo/vector-icons (Ionicons)</td><td>^15.0.3</td></tr>
+    <tr><td>SVG</td><td>react-native-svg</td><td>15.12.1</td></tr>
+    <tr><td>Animations</td><td>react-native-reanimated</td><td>~4.1</td></tr>
+    <tr><td>Gestures</td><td>react-native-gesture-handler</td><td>~2.28</td></tr>
+    <tr><td>Local DB</td><td>expo-sqlite</td><td>~16.0</td></tr>
+    <tr><td>Speech</td><td>expo-speech</td><td>~13.1</td></tr>
+    <tr><td>Haptics</td><td>expo-haptics</td><td>~14.1</td></tr>
+    <tr><td>Fonts</td><td>Inter + JetBrains Mono</td><td>latest</td></tr>
+  </tbody>
+</table>
+
+<h2 id="directory-structure">3. Directory Structure</h2>
+<pre><code>SoundKnotApp/
+├── app/                          # Expo Router file-based routes
+│   ├── _layout.tsx               # Root Stack navigator + font loading + splash
+│   ├── index.tsx                 # Entry redirect with auth check
+│   ├── login.tsx                 # Login / register screen
+│   ├── listen.tsx                # Listen screen (YouTube + clipped transcript box + bookmarks)
+│   ├── dictation.tsx             # Dictation screen (recall + check)
+│   ├── finished.tsx              # Session complete screen (saves session to API)
+│   ├── ai-tutor.tsx              # AI tutor chat (fullScreenModal, KAV-wrapped)
+│   ├── ai-settings.tsx           # AI provider/model picker
+│   └── (tabs)/                   # Tab navigator group
+│       ├── _layout.tsx           # Tab bottom nav (Home | Library | Profile)
+│       ├── home.tsx              # URL paste + AI preprocessing flow + library list w/ delete
+│       ├── library.tsx           # Phrase + Vocabulary tabs (saved bookmarks)
+│       └── progress.tsx          # Stats dashboard (streak + sessions + mastery)
+├── src/
+│   ├── components/
+│   │   ├── ui/                   # Design system primitives
+│   │   │   ├── Button.tsx        # Primary / ghost / pill variants
+│   │   │   ├── Card.tsx          # Paper-2 surface, accent variant
+│   │   │   ├── Tag.tsx           # Filled / outlined / chip variants
+│   │   │   ├── Chip.tsx          # Mono label badge with optional dot/icon
+│   │   │   ├── ProgressBar.tsx   # Thin ink fill or 5-dot mastery display
+│   │   │   ├── EmptyState.tsx    # Dashed-border placeholder
+│   │   │   └── Knot.tsx          # Trefoil knot SVG (parametric curve)
+│   │   ├── youtube/              # Platform-split YouTube player
+│   │   │   ├── YoutubePlayerView.tsx       # TS fallback (re-exports .native)
+│   │   │   ├── YoutubePlayerView.native.tsx # Wraps react-native-youtube-iframe
+│   │   │   └── YoutubePlayerView.web.tsx    # iframe + postMessage YT API
+│   │   ├── audio/                # Audio playback controls (legacy)
+│   │   ├── content/              # Content card / list / curiosity feed (legacy)
+│   │   ├── tracker/              # Stats grid / streak badge / time tracker (legacy)
+│   │   ├── practice/             # PhraseRepeater drill (legacy)
+│   │   └── companion/            # AI chat (legacy)
+│   ├── constants/
+│   │   ├── Colors.ts             # Light + Dark color palettes + backward compat
+│   │   ├── Typography.ts         # 20+ text style presets (sans/mono/serif)
+│   │   ├── Spacing.ts            # Spacing & border radius scale
+│   │   ├── Config.ts             # App config, milestones, voice commands
+│   │   └── theme.ts              # useTheme() / useIsDark() hooks (light only)
+│   ├── hooks/
+│   │   ├── useAudioPlayer.ts     # expo-av Audio.Sound lifecycle (legacy)
+│   │   ├── useTimer.ts           # Session elapsed time tracking
+│   │   ├── useAICompanion.ts     # Chat message state + API calls
+│   │   ├── useVoiceCommands.ts   # Voice command recognition dispatch
+│   │   └── useRecommendations.ts # Content recommendations by interest
+│   ├── services/
+│   │   ├── api.ts                # Generic ApiClient with bearer token
+│   │   ├── auth.ts               # /auth/register, /auth/login, /auth/logout, /auth/me
+│   │   ├── home.ts               # GET /home (HomeData payload)
+│   │   ├── videos.ts             # /videos CRUD + per-video sessions
+│   │   ├── sessions.ts           # POST /sessions
+│   │   ├── transcript.ts         # YouTube transcript fetcher (raw + local merger fallback)
+│   │   ├── preprocess.ts         # Video link preprocessing pipeline
+│   │   ├── ai.ts                 # AI companion service (legacy)
+│   │   ├── content.ts            # Content library API (legacy)
+│   │   └── voice.ts              # Voice command processing (legacy)
+│   ├── stores/                   # Zustand state management
+│   │   ├── authStore.ts          # Auth session + token + persistence
+│   │   ├── userStore.ts          # User profile, level, streak (loaded from API)
+│   │   ├── playerStore.ts        # Audio playback state (legacy)
+│   │   ├── sessionStore.ts       # Local session + saveSession() API call
+│   │   ├── preprocessedTranscriptStore.ts # AI-split transcript lines keyed by videoId
+│   │   └── contentStore.ts       # Content library + filters (legacy)
+│   ├── types/
+│   │   └── index.ts              # All TypeScript interfaces
+│   └── utils/
+│       ├── audio.ts              # Audio session config (web-guarded), URL validation
+│       └── time.ts               # Time formatting, greeting
+├── assets/                       # App icons, splash, favicon
+├── specs/                        # Documentation
+├── design/                       # Prototype design files (reference only)
+├── app.json                      # Expo configuration (iOS / Android / Web)
+├── package.json
+└── tsconfig.json</code></pre>
+
+<h2 id="design-system">4. Design System</h2>
+
+<h3>4.1 Color Palette — Warm Orange on Paper</h3>
+<p>The design uses a restrained palette: warm off-white paper background, near-black charcoal ink, and a single warm orange accent. <strong>The app is locked to light mode only</strong> — dark mode colors are defined but unused.</p>
+
+<p><strong>Light Mode</strong> (<code>src/constants/Colors.ts</code> — <code>LightColors</code>):</p>
+<table>
+  <thead><tr><th>Token</th><th>Value</th><th>Usage</th></tr></thead>
+  <tbody>
+    <tr><td><code>paper</code></td><td><code>#F4F3EF</code></td><td>Main background</td></tr>
+    <tr><td><code>paper2</code></td><td><code>#ECEAE2</code></td><td>Secondary surface / card background</td></tr>
+    <tr><td><code>ink</code></td><td><code>#2A2522</code></td><td>Primary text (warm charcoal)</td></tr>
+    <tr><td><code>ink2</code></td><td><code>#4A4440</code></td><td>Secondary text</td></tr>
+    <tr><td><code>ink3</code></td><td><code>#7A756F</code></td><td>Tertiary/muted text</td></tr>
+    <tr><td><code>ink4</code></td><td><code>#9E9990</code></td><td>Most subtle (labels, disabled)</td></tr>
+    <tr><td><code>hair</code></td><td><code>rgba(42, 37, 34, 0.10)</code></td><td>Hairline borders</td></tr>
+    <tr><td><code>hair2</code></td><td><code>rgba(42, 37, 34, 0.06)</code></td><td>Subtler dividers</td></tr>
+    <tr><td><code>accent</code></td><td><code>#E8913A</code></td><td>Warm orange accent</td></tr>
+    <tr><td><code>accentSoft</code></td><td><code>rgba(232, 145, 58, 0.14)</code></td><td>Transparent orange highlight</td></tr>
+    <tr><td><code>accentInk</code></td><td><code>#7A3D0A</code></td><td>Dark orange for text-on-light</td></tr>
+    <tr><td><code>inkInverse</code></td><td><code>rgba(244, 243, 239, 0.60)</code></td><td>Light text on dark/accent</td></tr>
+    <tr><td><code>inkInverse2</code></td><td><code>rgba(244, 243, 239, 0.70)</code></td><td>Light text on dark/accent (brighter)</td></tr>
+    <tr><td><code>positive</code></td><td><code>#00897B</code></td><td>Success (green-cyan)</td></tr>
+    <tr><td><code>negative</code></td><td><code>#E53935</code></td><td>Error (red-orange)</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Theme Mode — Light Only:</strong> Enforced at three levels:</p>
+<ol>
+  <li><code>src/constants/theme.ts</code> — hooks hardcoded to light</li>
+  <li><code>app.json</code> — <code>"userInterfaceStyle": "light"</code></li>
+  <li><code>app/_layout.tsx</code> — <code>&lt;StatusBar style="dark" /&gt;</code></li>
+</ol>
+
+<h3>4.2 Typography Scale</h3>
+<table>
+  <thead><tr><th>Family</th><th>Loaded via</th><th>Usage</th></tr></thead>
+  <tbody>
+    <tr><td>Inter Tight (400/500/600/700)</td><td><code>@expo-google-fonts/inter</code></td><td>Body text, UI, buttons</td></tr>
+    <tr><td>JetBrains Mono (400/500)</td><td><code>@expo-google-fonts/jetbrains-mono</code></td><td>Timestamps, markers, chips</td></tr>
+    <tr><td>Instrument Serif</td><td>System serif fallback (Georgia)</td><td>Hero text, italic emphasis</td></tr>
+  </tbody>
+</table>
+<p>20+ presets in <code>src/constants/Typography.ts</code> — see <code>heroLarge</code>, <code>hero</code>, <code>titleLarge</code>, <code>headingLarge</code>, <code>heading</code>, <code>bodyLarge</code>, <code>body</code>, <code>bodyMedium</code>, <code>bodySmall</code>, <code>marker</code>, <code>markerLarge</code>, <code>monoSmall</code>, <code>mono</code>, <code>monoDisplay</code>, <code>monoStat</code>, <code>tab</code>, <code>chip</code>, <code>button</code>, <code>buttonSmall</code>, <code>serifItalic</code>.</p>
+
+<h3>4.3 Spacing &amp; Radius</h3>
+<p><strong>Spacing scale</strong> (<code>src/constants/Spacing.ts</code>): <code>xs=4, sm=6, md=8, lg=10, xl=12, xxl=14, xxxl=16, huge=20, massive=24, screen=16</code></p>
+<p><strong>Border radius</strong> (<code>Radius</code>): <code>xs=2, sm=3, md=6, lg=7, xl=10, xxl=12, xxxl=16, pill=26, circle=999</code></p>
+
+<h2 id="component-library">5. Component Library</h2>
+
+<h3>5.1 UI Primitives</h3>
+<h4>Button (<code>src/components/ui/Button.tsx</code>)</h4>
+<ul>
+  <li><strong>Variants</strong>: <code>primary</code>, <code>ghost</code>, <code>pill</code></li>
+  <li><strong>Sizes</strong>: <code>sm</code>, <code>md</code>, <code>lg</code></li>
+  <li>Loading spinner, disabled (40% opacity)</li>
+</ul>
+
+<h4>Card / Tag / Chip / ProgressBar / EmptyState</h4>
+<p>Standard variants — see file headers in <code>src/components/ui/</code>. ProgressBar supports both continuous progress and 5-segment mastery dots.</p>
+
+<h4>Knot (<code>src/components/ui/Knot.tsx</code>)</h4>
+<p>Parametric trefoil knot SVG. See Algorithm 10.1.</p>
+
+<h3>5.2 YouTube Player — Platform-Split</h3>
+<p><code>src/components/youtube/YoutubePlayerView.{web,native,tsx}</code></p>
+<p>The player is split across three files so Metro picks the right implementation per platform:</p>
+<table>
+  <thead><tr><th>File</th><th>Platform</th><th>Implementation</th></tr></thead>
+  <tbody>
+    <tr><td><code>YoutubePlayerView.native.tsx</code></td><td>iOS / Android</td><td>Wraps <code>react-native-youtube-iframe</code> (which uses <code>react-native-webview</code> internally)</td></tr>
+    <tr><td><code>YoutubePlayerView.web.tsx</code></td><td>Web</td><td>Native HTML <code>&lt;iframe&gt;</code> to <code>youtube.com/embed/{id}</code> + YT IFrame postMessage API</td></tr>
+    <tr><td><code>YoutubePlayerView.tsx</code></td><td>TypeScript</td><td>Re-exports from <code>.native</code> so <code>tsc --noEmit</code> resolves types</td></tr>
+  </tbody>
+</table>
+
+<p><strong>Shared interface:</strong></p>
+<pre><code>interface YoutubePlayerHandle {
+  getCurrentTime: () =&gt; Promise&lt;number&gt;;
+  getDuration: () =&gt; Promise&lt;number&gt;;
+  seekTo: (seconds: number) =&gt; Promise&lt;void&gt;;
+}
+interface YoutubePlayerViewProps {
+  videoId: string;
+  width: number;
+  height: number;
+  play: boolean;
+  onReady: () =&gt; void;
+  onStateChange: (state: 'playing' | 'paused' | 'ended') =&gt; void;
+  onError: (error: string) =&gt; void;
+}</code></pre>
+
+<p><strong>Web implementation details:</strong></p>
+<ul>
+  <li>Embeds <code>https://www.youtube.com/embed/{id}?enablejsapi=1&amp;origin={origin}&amp;...</code></li>
+  <li>Listens to <code>window.message</code> events, parses YT JSON payloads (<code>onReady</code>, <code>onStateChange</code>, <code>onError</code>, <code>infoDelivery</code>)</li>
+  <li>Caches <code>currentTime</code> / <code>duration</code> from <code>infoDelivery</code> events; <code>getCurrentTime()</code> posts a <code>listening</code> event then waits 100ms and returns the cached value</li>
+  <li>Sends <code>playVideo</code> / <code>pauseVideo</code> / <code>seekTo</code> commands via <code>postMessage</code></li>
+</ul>
+
+<p><strong>Why platform split</strong>: a runtime <code>if (Platform.OS !== 'web') require(...)</code> guard does not work — Metro statically resolves all <code>require()</code> calls at bundle time. Using the <code>.web.tsx</code> / <code>.native.tsx</code> file convention lets Metro pick the correct file per platform during bundling.</p>
+
+<h3>5.3 Tab Bar</h3>
+<p><code>app/(tabs)/_layout.tsx</code> defines three tabs using <code>@expo/vector-icons</code> Ionicons:</p>
+<table>
+  <thead><tr><th>Tab</th><th>Title</th><th>Icon (focused / default)</th></tr></thead>
+  <tbody>
+    <tr><td><code>home</code></td><td>Home</td><td><code>home</code> / <code>home-outline</code></td></tr>
+    <tr><td><code>library</code></td><td>Library</td><td><code>book</code> / <code>book-outline</code></td></tr>
+    <tr><td><code>progress</code></td><td>Profile</td><td><code>person-circle</code> / <code>person-circle-outline</code></td></tr>
+  </tbody>
+</table>
+<p>Active tint: <code>colors.accent</code> (#E8913A). Inactive tint: <code>colors.ink4</code>. Labels: 10px JetBrains Mono uppercase with 0.6 letter-spacing.</p>
+
+<h3>5.4 Legacy Feature Components</h3>
+<p><code>PlaybackControls</code>, <code>StatsGrid</code>, <code>StreakBadge</code>, <code>TimeTracker</code>, <code>ContentCard</code>, <code>ContentList</code>, <code>CuriosityFeed</code>, <code>PhraseRepeater</code>, <code>CompanionChat</code> exist under <code>src/components/{audio,tracker,content,practice,companion}/</code> but are not currently wired into the V2 screen flow. They are kept for reference.</p>
+
+<h2 id="screen-flow">6. Screen Flow &amp; Navigation</h2>
+
+<h3>6.1 Route Map</h3>
+<pre><code>Root Stack (app/_layout.tsx)
+├── /                          → index.tsx (auth gate → login or tabs)
+├── /login                     → login.tsx (login + register)
+├── /(tabs)                    → Tab Navigator
+│   ├── /home                  → home.tsx
+│   ├── /library               → library.tsx
+│   └── /progress              → progress.tsx (titled "Profile")
+├── /listen                    → listen.tsx
+├── /dictation                 → dictation.tsx
+├── /finished                  → finished.tsx (modal, slide_from_bottom)
+├── /ai-tutor                  → ai-tutor.tsx (fullScreenModal, slide_from_bottom)
+└── /ai-settings               → ai-settings.tsx (slide_from_right)</code></pre>
+
+<h3>6.2 User Flow</h3>
+<pre><code>Splash (font loading)
+  ↓
+Index (auth check via authStore.restoreSession)
+  ├── unauthenticated → /login
+  └── authenticated   → /(tabs)/home
+      ↓
+Home (Home tab)
+  ├── Paste YouTube URL → preprocessing pipeline (provider → length → transcript → language → AI split)
+  │     └── on success → POST /videos → store preprocessed transcript → /listen
+  └── Tap recent knot → /listen
+      ↓
+Listen Screen
+  ├── YouTube player (clipped rounded box)
+  ├── Transcript source:
+  │     ├── If preprocessedTranscriptStore has lines for videoId → use them
+  │     └── Else → fetchTranscript() (raw + local merge fallback)
+  ├── Fixed transcript header ("Transcript" + N LINES) above a border
+  ├── Scrolling transcript inside a clipped box (no bleed into video)
+  │   ├── Active sentence rendered ink + fontWeight '900'
+  │   ├── Auto-scrolls to keep active line ~1/3 from the top
+  │   ├── Tap any line → seek to timestamp
+  │   ├── Long-press → bookmark / saved-phrase menu
+  │   └── Eye icon → hide/reveal transcript
+  ├── [Ask AI Tutor] → /ai-tutor (full-screen modal)
+  ├── [Close] → back to Home
+  └── [Recall →] → /dictation
+      ↓
+Dictation Screen
+  ├── Recall list (text or voice entries)
+  ├── Text input dock + mic record + submit
+  ├── [Listen again] → back to /listen
+  ├── [Check all] → word-level diff results
+  └── [Finish session] → /finished (modal)
+      ↓
+Finished Screen
+  ├── Knot motif (orange accent, 100% played)
+  ├── Session stats (recalls, avg match)
+  ├── POST /sessions on mount (one-shot via saved ref)
+  └── [Return home] → /(tabs)/home</code></pre>
+
+<h3>6.3 Navigation Patterns</h3>
+<ul>
+  <li><code>router.push()</code> for forward navigation (slide_from_right)</li>
+  <li><code>router.back()</code> for backward navigation</li>
+  <li><code>router.replace()</code> when returning to home after session and after login</li>
+  <li>Login uses <code>animation: 'fade'</code>; Finished opens as <strong>modal</strong> (slide_from_bottom)</li>
+  <li>All screens hide the Stack header (custom inline headers)</li>
+</ul>
+
+<h2 id="state-management">7. State Management</h2>
+
+<h3>7.1 Stores (Zustand)</h3>
+
+<h4>authStore (<code>src/stores/authStore.ts</code>)</h4>
+<pre><code>interface AuthState {
+  user: AuthUser | null;
+  session: AuthSession | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+  // Actions
+  login(email, password): Promise&lt;void&gt;;
+  register(email, password, displayName?): Promise&lt;void&gt;;
+  logout(): Promise&lt;void&gt;;
+  restoreSession(): Promise&lt;boolean&gt;;
+  clearError(): void;
+}</code></pre>
+<ul>
+  <li>Persists session + user to <strong>AsyncStorage</strong> under <code>soundknot_session</code> and <code>soundknot_user</code></li>
+  <li>On <code>restoreSession()</code>: loads from storage, checks <code>expires_at</code>, calls <code>apiClient.setToken()</code>, validates with <code>/auth/me</code>, clears storage on failure</li>
+  <li>Throws on login/register failure so callers can react; error message also stored in state</li>
+</ul>
+
+<h4>userStore (<code>src/stores/userStore.ts</code>)</h4>
+<pre><code>interface UserState {
+  user: User | null;
+  isOnboardingComplete: boolean;
+  handsFreeEnabled: boolean;
+  // Actions: setUser, loadFromApi, updateInterests, addListeningMinutes,
+  //          updateStreak, setLevel, completeOnboarding, toggleHandsFree, reset
+}</code></pre>
+<ul>
+  <li><code>loadFromApi()</code> calls <code>authService.me()</code> and maps the API <code>Profile</code> + <code>UserProgress</code> into the local <code>User</code> shape</li>
+  <li><code>addListeningMinutes()</code> recomputes level via <code>calculateLevel(totalMinutes)</code>:
+    <code>&gt;= 60000 → master, &gt;= 30000 → advanced, &gt;= 6000 → intermediate, else beginner</code></li>
+</ul>
+
+<h4>sessionStore (<code>src/stores/sessionStore.ts</code>)</h4>
+<pre><code>interface SessionState {
+  activeSession: ListeningSession | null;
+  sessions: ListeningSession[];
+  totalSecondsToday: number;
+  isTracking: boolean;
+  // Actions: startSession, pauseSession, resumeSession, endSession, tick,
+  //          addBookmark, removeBookmark, addAIQuery, loadSessions, saveSession
+}</code></pre>
+<ul>
+  <li><code>saveSession(data)</code> posts to <code>/sessions</code> via <code>sessionService.create()</code> and swallows errors with <code>console.warn</code></li>
+  <li>Used by <code>app/finished.tsx</code> to persist the practice session on mount (guarded by a <code>useRef</code> so it only fires once)</li>
+</ul>
+
+<h4>playerStore / contentStore (legacy)</h4>
+<p>Defined but not used by V2 screens.</p>
+
+<h3>7.2 Auth + State Lifecycle</h3>
+<pre><code>app/_layout.tsx (RootLayout)
+  ├── Loads fonts → renders splash for 300ms
+  └── Renders Stack
+      ↓
+app/index.tsx
+  ├── authStore.restoreSession()
+  │   ├── reads AsyncStorage
+  │   ├── apiClient.setToken()
+  │   └── validates with /auth/me
+  ├── if isAuthenticated → &lt;Redirect href="/(tabs)/home" /&gt;
+  └── else → &lt;Redirect href="/login" /&gt;
+      ↓
+app/login.tsx
+  ├── authStore.login(email, password) or .register(...)
+  └── on success → router.replace('/(tabs)/home')
+      ↓
+Authenticated tabs
+  ├── Home: homeService.fetch() (GET /home)
+  ├── Library: videoService.list() (GET /videos)
+  └── Profile: authService.me() + homeService.fetch()</code></pre>
+
+<h2 id="types">8. Types &amp; Data Models</h2>
+<p>All types defined in <code>src/types/index.ts</code>.</p>
+
+<h3>Auth &amp; Profile</h3>
+<pre><code>interface AuthSession { access_token, refresh_token, expires_at? }
+interface AuthUser    { id, email, profile: Profile | null }
+interface Profile     { id, display_name, interests: string[], level, created_at, updated_at }
+interface UserProgress {
+  id, current_streak, longest_streak, total_minutes,
+  total_sessions, last_session_date, updated_at
+}</code></pre>
+
+<h3>User-owned content</h3>
+<pre><code>interface UserVideo {
+  id, user_id, youtube_video_id,
+  title: string | null,
+  channel: string | null,
+  thumbnail_url: string | null,
+  added_at
+}
+
+interface PracticeSession {
+  id, user_id, video_id,
+  segment: string | null,
+  pass: number,
+  mastery: number,    // 0..1
+  accuracy: number,   // 0..1
+  listened_seconds: number,
+  created_at,
+  user_videos?: { title, youtube_video_id, thumbnail_url }
+}
+
+interface HomeData {
+  progress: UserProgress | null;
+  todaySessions: PracticeSession[];
+  recentKnots: PracticeSession[];
+  videos: UserVideo[];
+}</code></pre>
+
+<h3>Local types (legacy / non-API)</h3>
+<ul>
+  <li><code>User</code> — denormalized client-side user shape (<code>displayName</code>, <code>totalListeningMinutes</code>, <code>streak</code>, <code>level</code>, etc.)</li>
+  <li><code>ContentItem</code>, <code>TranscriptSegment</code>, <code>KeyPhrase</code> — content library types</li>
+  <li><code>ListeningSession</code>, <code>Bookmark</code>, <code>AIQuery</code> — local session tracking</li>
+  <li><code>DrillSession</code>, <code>Recommendation</code>, <code>Achievement</code></li>
+  <li><code>AudioState</code>, <code>LoopMode</code>, <code>VoiceCommand</code>, <code>VoiceAction</code></li>
+</ul>
+
+<h3>Navigation</h3>
+<pre><code>type RootStackParamList = {
+  index: undefined;
+  login: undefined;
+  onboarding: undefined;
+  '(tabs)': undefined;
+  listen: { videoId: string; userVideoId?: string };
+  dictation: { videoId: string; userVideoId?: string };
+  finished: {
+    userVideoId?: string;
+    recallsCount?: string;
+    averageAccuracy?: string;
+    listenedSeconds?: string;
+  };
+  // ...
+};</code></pre>
+
+<h2 id="services-hooks">9. Services &amp; Hooks</h2>
+
+<h3>9.1 ApiClient (<code>src/services/api.ts</code>)</h3>
+<p>Singleton <code>apiClient</code> with:</p>
+<ul>
+  <li><code>get&lt;T&gt;</code>, <code>post&lt;T&gt;</code>, <code>put&lt;T&gt;</code>, <code>delete&lt;T&gt;</code></li>
+  <li><code>setToken(token)</code> / <code>clearToken()</code> — bearer auth</li>
+  <li>Base URL from <code>Config.apiBaseUrl</code> (env: <code>EXPO_PUBLIC_API_URL</code>, default <code>https://api.soundknot.app</code>)</li>
+  <li>Throws <code>Error(body.error || 'API Error: {status} {statusText}')</code> on non-2xx</li>
+</ul>
+
+<h3>9.2 Domain services</h3>
+<table>
+  <thead><tr><th>Service</th><th>Endpoints</th><th>Used by</th></tr></thead>
+  <tbody>
+    <tr><td><code>authService</code> (<code>auth.ts</code>)</td><td>POST /auth/register, POST /auth/login, POST /auth/logout, GET /auth/me</td><td><code>authStore</code>, <code>userStore</code>, <code>progress.tsx</code></td></tr>
+    <tr><td><code>homeService</code> (<code>home.ts</code>)</td><td>GET /home → <code>HomeData</code></td><td><code>home.tsx</code>, <code>progress.tsx</code></td></tr>
+    <tr><td><code>videoService</code> (<code>videos.ts</code>)</td><td>GET /videos, POST /videos, GET /videos/:id/sessions, DELETE /videos/:id</td><td><code>home.tsx</code> (add + remove), <code>library.tsx</code> (list)</td></tr>
+    <tr><td><code>sessionService</code> (<code>sessions.ts</code>)</td><td>POST /sessions</td><td><code>sessionStore.saveSession</code> → <code>finished.tsx</code></td></tr>
+    <tr><td><code>transcript</code> (<code>transcript.ts</code>)</td><td>YouTube InnerTube via <code>youtube-transcript</code></td><td><code>listen.tsx</code>, <code>preprocess.ts</code></td></tr>
+    <tr><td><code>preprocessService</code> (<code>preprocess.ts</code>)</td><td>Local pipeline + POST /ai/split-transcript</td><td><code>home.tsx</code></td></tr>
+  </tbody>
+</table>
+
+<h3>9.3 Transcript Service</h3>
+<ul>
+  <li><strong>Package</strong>: <code>youtube-transcript</code> (^1.3.1) — calls YouTube's internal <code>get_transcript</code> endpoint with Android client emulation, falls back to HTML scraping</li>
+  <li><code>fetchRawTranscript(videoId)</code> → fetches raw fragments, converts ms→seconds, returns unmerged fragments (used by preprocessing)</li>
+  <li><code>splitTranscriptLocally(fragments)</code> → local sentence-first practice chunker (Algorithm 10.5), used as fallback when AI split fails</li>
+  <li><code>fetchTranscript(videoId)</code> → convenience wrapper that fetches raw + applies local merger; used by <code>/listen</code> when no preprocessed transcript is available</li>
+  <li><code>formatTimestamp(seconds)</code> → <code>m:ss</code> or <code>h:mm:ss</code></li>
+  <li><code>findCurrentLineIndex(lines, currentTime)</code> → reverse linear search for the last line whose <code>start ≤ currentTime</code></li>
+</ul>
+
+<h3>9.4 Preprocess Service (<code>src/services/preprocess.ts</code>)</h3>
+<p>Orchestrates the link → practice-ready transcript pipeline used by Home submit. Reports per-step status to the caller via a callback so the UI can render agent-style progress.</p>
+<p>Steps (<code>PreprocessStepId</code>):</p>
+<table>
+  <thead><tr><th>Step</th><th>Action</th><th>Failure mode</th></tr></thead>
+  <tbody>
+    <tr><td><code>provider</code></td><td>Extract YouTube ID via regex</td><td>Non-YouTube link</td></tr>
+    <tr><td><code>duration</code></td><td>YouTube oEmbed reachability + transcript-derived length check (&lt;30 min)</td><td>Private/blocked video or &gt;30 min</td></tr>
+    <tr><td><code>transcript</code></td><td><code>fetchRawTranscript(videoId)</code></td><td>No transcript available</td></tr>
+    <tr><td><code>language</code></td><td>ASCII letter / common-word heuristic on first 80 lines</td><td>Likely non-English transcript</td></tr>
+    <tr><td><code>ai</code></td><td><code>POST /ai/split-transcript</code> with raw fragments, then post-process with <code>packTranscriptLines()</code></td><td>Falls back to <code>splitTranscriptLocally()</code> (does not throw)</td></tr>
+  </tbody>
+</table>
+<p>Returns <code>{ videoId, lines }</code>. Lines are written into <code>preprocessedTranscriptStore</code> before navigation.</p>
+
+<h3>9.5 Hooks (legacy)</h3>
+<p><code>useAudioPlayer</code>, <code>useTimer</code>, <code>useAICompanion</code>, <code>useVoiceCommands</code>, <code>useRecommendations</code> — present but not used by V2 screens.</p>
+
+<h2 id="algorithms">10. Key Algorithms</h2>
+
+<h3>10.1 Knot Rendering (<code>src/components/ui/Knot.tsx</code>)</h3>
+<p>Parametric trefoil knot rendered via <code>react-native-svg</code>:</p>
+<ol>
+  <li><strong>Parametric generation</strong> (360 steps):
+    <pre><code>x = cx + (sin(t) + 2·sin(2t)) × scale
+y = cy + (cos(t) - 2·cos(2t)) × scale
+z = sin(3t)
+scale = (size/2) × 0.28 × (1 - mastery × 0.12)</code></pre>
+  </li>
+  <li><strong>Over/under weave</strong>: split curve at <code>z &gt; 0.3</code>, draw paper-colored gap strokes, redraw over-strands.</li>
+  <li><strong>Played portion</strong>: amber stroke-dasharray proportional to <code>progress</code>.</li>
+  <li><strong>Pass rings</strong>: concentric dashed circles (1 per completed pass).</li>
+  <li><strong>Tick marks</strong>: 12 perimeter ticks; central dot sized by <code>mastery</code>.</li>
+</ol>
+
+<h3>10.2 Dictation Diff (<code>app/dictation.tsx:33</code>)</h3>
+<p>Word-level comparison (<code>checkRecall</code>):</p>
+<ol>
+  <li>Normalize user text: lowercase, strip punctuation, split to words</li>
+  <li>Walk target text:
+    <ul>
+      <li><strong>Exact match</strong> → <code>correct</code></li>
+      <li><strong>One-word-ahead</strong> (user word matches next target) → mark current <code>extra</code>, next <code>correct</code></li>
+      <li><strong>Prefix match</strong> (both ≥4 chars, first 4 match) → <code>correct</code></li>
+      <li><strong>No match</strong> → <code>missed</code></li>
+    </ul>
+  </li>
+  <li>Returns accuracy %, correct/missed counts, diff array.</li>
+</ol>
+
+<h3>10.3 Level Calculation (<code>src/stores/userStore.ts:92</code>)</h3>
+<pre><code>totalMinutes &gt;= 60000 → master
+totalMinutes &gt;= 30000 → advanced
+totalMinutes &gt;= 6000  → intermediate
+otherwise             → beginner</code></pre>
+
+<h3>10.4 YouTube URL Extraction (<code>src/services/preprocess.ts</code>)</h3>
+<pre><code>const m = url.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+return m ? m[1] : null;</code></pre>
+<p><code>extractYouTubeId()</code> lives in <code>preprocess.ts</code> and is the first step of the preprocessing pipeline. On the home screen, submitting a URL runs the full pipeline (§10.10) rather than navigating directly.</p>
+
+<h3>10.5 Transcript Sentence Chunking (<code>src/services/transcript.ts</code>)</h3>
+<p>YouTube returns transcripts as ~2-3 second fragments. SoundKnot now treats transcript rows as <strong>recall-practice chunks</strong>, not subtitle cues. The invariant is strict: a rendered row must contain a full number of English sentences — exactly <strong>1</strong>, <strong>2</strong>, or <strong>3</strong> complete sentences. It should never display 1.5 or 2.5 sentences.</p>
+
+<p><strong>Stage A — Rebuild timed text</strong></p>
+<ol>
+  <li><code>buildTimedText(fragments)</code> normalizes fragment text and concatenates it into one transcript string.</li>
+  <li>For every character in the reconstructed string, it stores an approximate timestamp derived from the source fragment's <code>start</code> and <code>duration</code>.</li>
+  <li>This lets later sentence chunks preserve useful <code>start</code>/<code>duration</code> even when a sentence crosses several raw YouTube fragments.</li>
+</ol>
+
+<p><strong>Stage B — Detect full sentence units</strong></p>
+<ol>
+  <li><code>splitIntoSentenceUnits()</code> scans the rebuilt text for sentence terminators: <code>.</code>, <code>?</code>, and <code>!</code>, including closing quotes/parens after the terminator.</li>
+  <li><code>sentenceBoundaryEnd()</code> rejects common false positives:
+    <ul>
+      <li>Decimals, e.g. <code>3.14</code></li>
+      <li>All-caps acronym-like periods</li>
+      <li>Common abbreviations: <code>Mr.</code>, <code>Mrs.</code>, <code>Dr.</code>, <code>Prof.</code>, <code>e.g.</code>, <code>i.e.</code>, <code>U.S.</code>, <code>U.K.</code>, etc.</li>
+    </ul>
+  </li>
+  <li><code>lineFromSpan()</code> converts each sentence span back into a <code>TranscriptLine</code> with text, start, and duration.</li>
+</ol>
+
+<p><strong>Stage C — Pack only whole sentences</strong></p>
+<ul>
+  <li><code>packTranscriptLines()</code> greedily groups sentence units while preserving sentence boundaries.</li>
+  <li>Constants:
+    <ul>
+      <li><code>MAX_SENTENCES_PER_CHUNK = 3</code></li>
+      <li><code>MIN_WORDS_PER_CHUNK = 30</code></li>
+      <li><code>MAX_WORDS_PER_CHUNK = 40</code></li>
+    </ul>
+  </li>
+  <li>If a single sentence has 30-40+ words, it stays as one row. The algorithm does not split it mid-sentence.</li>
+  <li>If sentences are shorter, it combines 2 or 3 consecutive full sentences only when the combined row stays within the 30-40 word target.</li>
+  <li>Every merged row uses <code>start</code> from the first sentence and <code>duration</code> through the last sentence.</li>
+</ul>
+
+<p><strong>Fallback — no punctuation</strong></p>
+<ul>
+  <li>If the transcript has no sentence punctuation at all, local code cannot strictly know English sentence boundaries. In that case <code>mergeByWordCount()</code> flushes every <code>UNPUNCTUATED_WORDS_PER_CHUNK = 45</code> words.</li>
+  <li>The preferred path for messy ASR is Home preprocessing via <code>POST /ai/split-transcript</code>, whose prompt asks Gemini to infer full English sentence boundaries and return 1/2/3-sentence segments.</li>
+</ul>
+
+<h3>10.6 Active-Line Highlight + Auto-Scroll (<code>app/listen.tsx</code>)</h3>
+<ul>
+  <li>500ms <code>setInterval</code> polls <code>playerRef.current.getCurrentTime()</code> while the player is <code>ready</code> (not gated on <code>playing</code>, so the highlight keeps following even if YouTube state callbacks misfire)</li>
+  <li><code>findCurrentLineIndex()</code> does a reverse linear scan to locate the last line with <code>start &lt;= currentTime</code></li>
+  <li>Active line styling: <code>color: colors.ink</code> and <code>fontWeight: '900'</code> (heavier than <code>bold</code>/<code>700</code> for clearer visual emphasis); inactive lines render as <code>colors.ink4</code> with <code>fontWeight: '400'</code></li>
+  <li>Each line measures its Y via <code>onLayout</code> and writes into a <code>lineYPositions</code> ref keyed by index</li>
+  <li>A <code>useEffect</code> on <code>currentLineIdx</code> change scrolls so the active line sits ~1/3 from the top: <code>target = max(0, lineY - scrollViewHeight * 0.33)</code></li>
+  <li>The transcript ScrollView is wrapped in a <code>transcriptBox</code> View with <code>overflow: 'hidden'</code> and a top hairline border, so scrolled content is clipped at a clear boundary below the video player</li>
+  <li>The <code>Transcript</code> label and <code>N LINES</code> counter render in a fixed <code>transcriptHeaderFixed</code> row above the boundary so they remain visible while the transcript scrolls</li>
+  <li><strong>Anti-pattern avoided</strong>: never use a ScrollView ref callback for imperative scroll — it fires every render. Always use <code>useRef</code> + <code>useEffect</code> keyed on the tracked index.</li>
+</ul>
+
+<h3>10.7 Home Library Item Removal (<code>app/(tabs)/home.tsx</code>)</h3>
+<p>Each video row in the Home library has an X icon (Ionicons <code>close</code>). Tapping it shows an <code>Alert.alert</code> confirm sheet, then performs an optimistic update:</p>
+<ol>
+  <li>Snapshot current <code>videos</code> array</li>
+  <li>Filter the doomed item out and <code>setVideos()</code> immediately for instant feedback</li>
+  <li><code>await videoService.remove(id)</code> (DELETE <code>/videos/:id</code>)</li>
+  <li>On error, restore the snapshot — the item reappears in place</li>
+</ol>
+
+<h3>10.8 AI Tutor Keyboard Handling (<code>app/ai-tutor.tsx</code> + <code>app/_layout.tsx</code>)</h3>
+<p>iOS modal presentation interacts poorly with <code>KeyboardAvoidingView</code>: in the default <code>presentation: 'modal'</code> (page sheet) mode, the keyboard offset is measured against the sheet's frame rather than the screen, so the input docks too low and gets covered. Fix:</p>
+<ul>
+  <li><code>app/_layout.tsx</code> declares the route with <code>presentation: 'fullScreenModal'</code> so it covers the screen</li>
+  <li><code>app/ai-tutor.tsx</code> puts <code>KeyboardAvoidingView</code> (<code>behavior="padding"</code> on iOS, <code>"height"</code> on Android) as the <strong>outermost</strong> wrapper above <code>SafeAreaView</code></li>
+  <li>The chat ScrollView sets <code>keyboardShouldPersistTaps="handled"</code> so taps on suggestion chips don't dismiss the keyboard</li>
+</ul>
+<p><strong>Header safe-area</strong> — Because the screen uses a custom inline header (the Stack header is hidden), the header must reserve enough vertical room to clear the status bar/notch. The header style sets <code>paddingTop: Spacing.lg</code>, <code>paddingBottom: Spacing.md</code>, and <code>minHeight: 64</code>. Back and Settings use dedicated styles (<code>backBtn</code> with <code>minHeight: 44, minWidth: 72</code>; <code>settingsBtn</code> with fixed <code>44x44</code> circular touch target) instead of a shared <code>headerBtn</code> so neither control overlaps the status bar on devices with smaller insets.</p>
+
+<h3>10.9 Session Persistence (<code>app/finished.tsx:30</code>)</h3>
+<pre><code>const saved = useRef(false);
+useEffect(() =&gt; {
+  if (saved.current || !userVideoId) return;
+  saved.current = true;
+  saveSession({
+    video_id: userVideoId,
+    accuracy: accuracy / 100,
+    listened_seconds: seconds,
+    pass: recalls,
+    mastery: accuracy / 100,
+  });
+}, [userVideoId]);</code></pre>
+<p>The <code>saved</code> ref ensures <code>POST /sessions</code> fires exactly once on mount, even if the screen re-renders.</p>
+
+<h3>10.10 Video &amp; Transcript Preprocessing (<code>src/services/preprocess.ts</code>)</h3>
+<p>Triggered from Home when the user submits a YouTube URL. Runs sequentially and reports <code>pending → running → done | failed</code> for each step so the UI can render an AI-coding-agent-style progress modal.</p>
+<pre><code>prepareYoutubeUrl(url, onStep)
+  1. provider   → extractYouTubeId(url)
+  2. duration   → assertVideoEmbeddable(videoId) via YouTube oEmbed
+  3. transcript → fetchRawTranscript(videoId)
+                → estimate duration from last fragment; reject if &gt; 30 min
+  4. language   → ASCII-letter + common-word + non-ASCII ratio heuristic
+                  on first 80 transcript lines (rejects obviously non-English)
+  5. ai         → POST /ai/split-transcript { videoId, transcript }
+                → on success: packTranscriptLines(response.lines)
+                → on failure: fallback to splitTranscriptLocally(raw.lines)
+                  (still completes the step; surfaces "AI split unavailable")
+  → return { videoId, lines }</code></pre>
+<p>Successful results are written into <code>preprocessedTranscriptStore</code> keyed by <code>videoId</code>. The <code>/listen</code> screen reads this store first; if absent, it falls back to <code>fetchTranscript()</code> (raw + local merge).</p>
+
+<h3>10.11 AI Transcript Splitting Endpoint (<code>api/src/routes/ai.ts</code>)</h3>
+<p><code>POST /ai/split-transcript</code> (authenticated, rate-limited via existing <code>checkRateLimit</code>).</p>
+<p><strong>Request:</strong></p>
+<pre><code>{
+  "videoId": "abc123",
+  "transcript": [
+    { "text": "hello world", "start": 0.0, "duration": 2.1 }
+  ]
+}</code></pre>
+<p><strong>Behavior:</strong></p>
+<ol>
+  <li>Validates body and per-line shape (<code>text</code> non-empty string, <code>start</code>/<code>duration</code> finite numbers).</li>
+  <li>Builds a timestamped transcript block <code>[start-end] text</code> per line.</li>
+  <li>Calls Gemini (<code>gemini-1.5-flash</code>, <code>temperature: 0.1</code>, <code>maxOutputTokens: 8192</code>) with a JSON-only system prompt instructing it to emit exactly 1, 2, or 3 complete English sentences per segment. The target is 30-40 words: keep one long sentence as one segment, and combine only consecutive full sentences when the combined segment fits the target.</li>
+  <li>Strips optional <code>```json</code> fences from the reply and parses as JSON.</li>
+  <li>Validates each segment (<code>text</code> string, finite <code>start</code>, finite <code>duration</code>), normalizes whitespace, clamps <code>start ≥ 0</code> and <code>duration ≥ 0.5</code>.</li>
+</ol>
+<p><strong>Response:</strong> <code>{ "lines": [{ text, start, duration }, …] }</code>.</p>
+<p><strong>Failure modes:</strong></p>
+<ul>
+  <li><code>400</code> — invalid request body</li>
+  <li><code>429</code> — rate limit exceeded</li>
+  <li><code>500</code> — <code>GEMINI_API_KEY</code> not configured</li>
+  <li><code>502</code> — Gemini upstream error, blocked response, empty output, or unparseable JSON</li>
+</ul>
+<p>The endpoint logs a structured <code>ai_split_transcript</code> event with <code>user_id</code>, <code>video_id</code>, fragment count, segment count, latency, and outcome.</p>
+
+<h2 id="configuration">11. Configuration</h2>
+
+<h3>app.json Highlights</h3>
+<pre><code>{
+  "expo": {
+    "name": "SoundKnot",
+    "slug": "soundknot",
+    "scheme": "soundknot",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": { "backgroundColor": "#F4F3EF" },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSMicrophoneUsageDescription": "..."
+      }
+    },
+    "android": {
+      "edgeToEdgeEnabled": true,
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "web": {
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "SoundKnot",
+      "shortName": "SoundKnot",
+      "description": "Practice English listening with YouTube videos",
+      "backgroundColor": "#F4F3EF",
+      "themeColor": "#E8913A"
+    },
+    "plugins": ["expo-router", "expo-av"],
+    "experiments": { "typedRoutes": true }
+  }
+}</code></pre>
+
+<h3>Config.ts (<code>src/constants/Config.ts</code>)</h3>
+<table>
+  <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>API base URL</td><td><code>process.env.EXPO_PUBLIC_API_URL</code> (default: <code>https://api.soundknot.app</code>)</td></tr>
+    <tr><td>AI endpoint</td><td><code>process.env.EXPO_PUBLIC_AI_ENDPOINT</code></td></tr>
+    <tr><td>Playback rate range</td><td>0.5x – 2.0x</td></tr>
+    <tr><td>Rewind/forward</td><td>10s / 30s</td></tr>
+    <tr><td>Session heartbeat</td><td>5000ms</td></tr>
+    <tr><td>Milestones (minutes)</td><td>600, 3000, 6000, 30000, 60000</td></tr>
+    <tr><td>Voice commands</td><td>10 phrases (play, pause, rewind, skip, bookmark, ask AI, speed)</td></tr>
+  </tbody>
+</table>
+
+<h3>AsyncStorage keys (<code>src/stores/authStore.ts</code>)</h3>
+<table>
+  <thead><tr><th>Key</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><code>soundknot_session</code></td><td><code>AuthSession</code> JSON (access_token, refresh_token, expires_at)</td></tr>
+    <tr><td><code>soundknot_user</code></td><td><code>AuthUser</code> JSON (id, email, profile)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="platform-support">12. Platform Support</h2>
+<p>The app targets <strong>iOS, Android, and the web</strong> from a single Expo Router codebase.</p>
+
+<h3>12.1 Web Bundling</h3>
+<p><code>app.json</code> configures <code>"bundler": "metro"</code> and <code>"output": "single"</code> so Expo's Metro web bundler emits a single-page app. Build with:</p>
+<pre><code>npx expo export --platform web</code></pre>
+<p>The output goes to <code>dist/</code>.</p>
+
+<h3>12.2 Platform-specific files</h3>
+<p>Metro resolves files in this order: <code>*.web.tsx</code> → <code>*.native.tsx</code> → <code>*.tsx</code>. The codebase uses this for the YouTube player (§5.2). The base <code>.tsx</code> file re-exports from <code>.native</code> so TypeScript type-checking resolves cleanly without seeing platform conditionals.</p>
+
+<h3>12.3 Runtime platform guards</h3>
+<p>Where a single file must run on all platforms but a specific API is unavailable on web:</p>
+<ul>
+  <li><code>src/utils/audio.ts:6</code> — <code>configureAudioSession()</code> returns early on web because <code>expo-av</code>'s native audio mode is not implemented for web.</li>
+  <li><code>app/login.tsx:53</code> — <code>KeyboardAvoidingView</code> uses <code>behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}</code> to avoid the noisy "Layout children must be specified" warning on web.</li>
+</ul>
+
+<h3>12.4 Web-only constraints</h3>
+<ul>
+  <li>Audio session config (background playback, silent-mode override) is a no-op on web; the browser handles audio policy.</li>
+  <li>Voice commands and microphone recording in dictation are unimplemented on web (the existing recording UI is a UI-only simulation).</li>
+  <li>Background tracking via <code>UIBackgroundModes</code> only applies to iOS native builds.</li>
+</ul>
+
+<h2 id="dev-guide">13. Development Guide</h2>
+
+<h3>Getting Started</h3>
+<pre><code>npm install
+npx expo start              # Choose i / a / w in the prompt</code></pre>
+
+<h3>Scripts</h3>
+<table>
+  <thead><tr><th>Command</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>npm start</code></td><td>Start Expo dev server</td></tr>
+    <tr><td><code>npm run ios</code></td><td>Start for iOS simulator</td></tr>
+    <tr><td><code>npm run android</code></td><td>Start for Android emulator</td></tr>
+    <tr><td><code>npm run web</code></td><td>Start for web</td></tr>
+    <tr><td><code>npm run lint</code></td><td>Run Expo linter</td></tr>
+    <tr><td><code>npm run clean</code></td><td>Start with cache clear</td></tr>
+  </tbody>
+</table>
+
+<h3>TypeScript</h3>
+<pre><code>npx tsc --noEmit   # Type-check without emitting</code></pre>
+
+<h3>Web build</h3>
+<pre><code>npx expo export --platform web   # outputs to dist/</code></pre>
+
+<h3>File-Based Routing Rules</h3>
+<ul>
+  <li><code>app/</code> directory maps 1:1 to routes</li>
+  <li><code>_layout.tsx</code> files define navigators</li>
+  <li><code>(group)</code> directories are route groups (shared layout)</li>
+  <li><code>[param]</code> directories are dynamic segments</li>
+  <li>Expo Router auto-generates typed routes at <code>.expo/types/router.d.ts</code> on first run</li>
+</ul>
+
+<h3>Adding a New Screen</h3>
+<ol>
+  <li>Create <code>app/screen-name.tsx</code></li>
+  <li>Add <code>&lt;Stack.Screen name="screen-name" /&gt;</code> to <code>app/_layout.tsx</code></li>
+  <li>Navigate: <code>router.push('/screen-name')</code> or with params</li>
+  <li>Run <code>npx expo start</code> to regenerate typed routes</li>
+</ol>
+
+<h3>Adding a Web/Native Split</h3>
+<ol>
+  <li>Create <code>Component.native.tsx</code> (RN-only APIs)</li>
+  <li>Create <code>Component.web.tsx</code> (browser/DOM APIs)</li>
+  <li>Optionally create <code>Component.tsx</code> that re-exports from <code>.native</code> for TypeScript</li>
+  <li>Import as <code>from './Component'</code> — Metro picks the right one per platform</li>
+</ol>
+
+<h3>Theme Usage Pattern</h3>
+<pre><code>import { useTheme } from '../constants/theme';
+import { Typography } from '../constants/Typography';
+import { Spacing, Radius } from '../constants/Spacing';
+
+function MyComponent() {
+  const colors = useTheme();
+  return (
+    &lt;View style={{ backgroundColor: colors.paper, padding: Spacing.screen }}&gt;
+      &lt;Text style={[Typography.heading, { color: colors.ink }]}&gt;Title&lt;/Text&gt;
+      &lt;Text style={[Typography.body, { color: colors.ink2 }]}&gt;Body&lt;/Text&gt;
+    &lt;/View&gt;
+  );
+}</code></pre>
+
+<h3>Design Tokens Reference</h3>
+<pre><code>colors.paper        → #F4F3EF  Main background
+colors.paper2       → #ECEAE2  Cards, secondary surfaces
+colors.ink          → #2A2522  Primary text
+colors.ink2-4       → progressively lighter ink
+colors.hair / hair2 → hairline borders / dividers
+colors.accent       → #E8913A  Warm orange accent
+colors.accentSoft   → translucent orange highlight
+colors.accentInk    → #7A3D0A  Dark orange text
+colors.positive     → #00897B  Success
+colors.negative     → #E53935  Error
+
+Spacing.screen      → 16px page padding
+Spacing.xxxl        → 16px internal padding
+Spacing.xl          → 12px gap
+Radius.xl           → 10px buttons/cards
+Radius.pill         → 26px fully rounded</code></pre>
+
+<div class="part-banner" id="part-4">Part 4 · AI Service Integration</div>
+
+<h2 id="ai-overview">AI Overview &amp; Surfaces</h2>
+<p>SoundKnot uses AI as a <strong>content-shaping</strong> tool and a <strong>conversational tutor</strong>. Both surfaces share the same provider (Google Gemini), the same Cloudflare Worker proxy, the same authentication, and the same per-user rate limiter. The app never holds the provider key in proxy mode — the Worker is the single egress point to Gemini.</p>
+
+<table>
+  <thead><tr><th>Surface</th><th>Endpoint</th><th>Trigger</th><th>Output</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Transcript splitting</strong></td>
+      <td><code>POST /ai/split-transcript</code></td>
+      <td>User submits a YouTube URL on the Home tab</td>
+      <td>Practice-ready segments (30–40 words, full sentences) stored in <code>preprocessedTranscriptStore</code> and displayed on <code>/listen</code></td>
+    </tr>
+    <tr>
+      <td><strong>Conversational tutor</strong></td>
+      <td><code>POST /ai/chat</code></td>
+      <td>User taps <em>Ask AI Tutor</em> on <code>/listen</code> or selects a phrase via long-press</td>
+      <td>Markdown reply with explanations of words, idioms, grammar, or pronunciation</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>High-Level Topology</h3>
+<div class="ascii">┌─────────────────────┐     HTTPS + Bearer JWT      ┌──────────────────────────┐     HTTPS + apiKey      ┌────────────────────┐
+│  Expo App (Client)  │ ──────────────────────────▶ │  Cloudflare Worker (Hono) │ ──────────────────────▶│   Google Gemini    │
+│                     │                             │                          │                         │ generativelanguage │
+│  /listen            │                             │  /ai/split-transcript     │                         │     .googleapis    │
+│  /ai-tutor          │                             │  /ai/chat                 │                         │       .com         │
+│  /(tabs)/home       │ ◀────────────────────────── │   - authMiddleware       │ ◀────────────────────── │                    │
+└─────────────────────┘    JSON { lines | reply }   │   - checkRateLimit       │  candidates[].content   └────────────────────┘
+                                                    │   - buildSystemPrompt    │
+                                                    │   - callGemini           │
+                                                    └──────────────────────────┘
+                                                              │
+                                                              │ structured logs (no message content)
+                                                              ▼
+                                                     wrangler tail / CF logs</div>
+
+<h2 id="ai-providers">Providers, Modes &amp; Models</h2>
+
+<h3>Two-Mode Client Abstraction</h3>
+<p>The client service <code>src/services/aiTutor.ts</code> supports two modes, controlled by <code>aiSettingsStore</code> (persisted to AsyncStorage under <code>soundknot_ai_settings</code>):</p>
+
+<table>
+  <thead><tr><th>Mode</th><th>Path</th><th>Key location</th><th>Default</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><code>proxy</code></td>
+      <td>App → CF Worker → Gemini</td>
+      <td>Server-side (Wrangler secret <code>GEMINI_API_KEY</code>)</td>
+      <td>✅ Yes</td>
+      <td>Production. Rate-limited, auth-gated, logged.</td>
+    </tr>
+    <tr>
+      <td><code>direct</code></td>
+      <td>App → Gemini</td>
+      <td>On device (entered via <code>/ai-settings</code>)</td>
+      <td>—</td>
+      <td>Dev escape hatch when the Worker is unavailable. Bypasses auth, rate limits, and logging.</td>
+    </tr>
+  </tbody>
+</table>
+
+<blockquote><strong>Note:</strong> The transcript-splitting flow is <em>proxy-only</em>. Only the Tutor honors the <code>direct</code> mode toggle. The provider list (<code>AiProvider</code>) is currently typed as <code>'gemini'</code> only, but the abstraction is deliberately thin so OpenAI / Anthropic adapters can drop in later.</blockquote>
+
+<h3>Model Selection</h3>
+<ul>
+  <li><strong>Transcript split</strong> — hard-coded to <code>gemini-1.5-flash</code> with <code>temperature: 0.1</code>, <code>maxOutputTokens: 8192</code> (deterministic, large output).</li>
+  <li><strong>Tutor chat</strong> — model is supplied per-request from the client's <code>AiSettings.model</code> (validated as non-empty string). Defaults to <code>temperature: 0.4</code>, <code>maxOutputTokens: 800</code> (conversational, concise).</li>
+</ul>
+
+<h2 id="ai-split">Sequence — AI Transcript Splitting</h2>
+
+<p>Triggered the moment a user pastes a YouTube URL on Home. The Worker is one step in a five-step <em>local</em> pipeline (<code>preprocessService.prepareYoutubeUrl</code>), each step rendered as an agent-style progress modal.</p>
+
+<div class="ascii">User      Home Screen        preprocessService        YouTube           CF Worker          Gemini
+ │              │                    │                    │                  │                 │
+ │  paste URL   │                    │                    │                  │                 │
+ │─────────────▶│                    │                    │                  │                 │
+ │              │  prepareYoutubeUrl │                    │                  │                 │
+ │              │───────────────────▶│                    │                  │                 │
+ │              │                    │ extractYouTubeId() │                  │                 │
+ │              │  ◀── step:provider │                    │                  │                 │
+ │              │                    │  GET /oembed?url=  │                  │                 │
+ │              │                    │───────────────────▶│                  │                 │
+ │              │                    │  ◀──── title/json ─│                  │                 │
+ │              │  ◀── step:duration │                    │                  │                 │
+ │              │                    │  fetchRawTranscript│                  │                 │
+ │              │                    │───────────────────▶│ (InnerTube)      │                 │
+ │              │                    │  ◀── raw fragments │                  │                 │
+ │              │                    │  estimate dur≤30m  │                  │                 │
+ │              │ ◀── step:transcript│                    │                  │                 │
+ │              │                    │  assertLikelyEnglish (ASCII + common-word heuristic)    │
+ │              │  ◀── step:language │                    │                  │                 │
+ │              │                    │  POST /ai/split-transcript            │                 │
+ │              │                    │  { videoId, transcript[] }            │                 │
+ │              │                    │──────────────────────────────────────▶│                 │
+ │              │                    │                    │ authMiddleware   │                 │
+ │              │                    │                    │ checkRateLimit   │                 │
+ │              │                    │                    │ build timestamped block            │
+ │              │                    │                    │ callGemini(gemini-1.5-flash,T=0.1) │
+ │              │                    │                    │─────────────────────────────────  ▶│
+ │              │                    │                    │  candidates[].content.parts[].text │
+ │              │                    │                    │ ◀───────────────────────────────── │
+ │              │                    │                    │ strip ```json fences, JSON.parse  │
+ │              │                    │                    │ validate &amp; clamp segments         │
+ │              │                    │  ◀── { lines: […] }│ log ai_split_transcript           │
+ │              │  ◀──── step:ai ✓   │                    │                  │                 │
+ │              │ store in preprocessedTranscriptStore[videoId] = lines      │                 │
+ │              │ POST /videos (oEmbed-backed metadata)                      │                 │
+ │              │ router.push('/listen?videoId=…&amp;userVideoId=…')             │                 │
+ ▼              ▼                    ▼                    ▼                  ▼                 ▼</div>
+
+<h3>Mermaid (renders inline if pasted into a Mermaid-aware viewer)</h3>
+<pre><code>sequenceDiagram
+    actor U as User
+    participant H as Home Screen
+    participant P as preprocessService
+    participant Y as YouTube
+    participant W as CF Worker (/ai/split-transcript)
+    participant G as Gemini API
+
+    U-&gt;&gt;H: Paste YouTube URL
+    H-&gt;&gt;P: prepareYoutubeUrl(url, onStep)
+    P-&gt;&gt;P: extractYouTubeId() — step:provider ✓
+    P-&gt;&gt;Y: GET /oembed?url=...
+    Y--&gt;&gt;P: { title, author_name }
+    P--&gt;&gt;H: step:duration (preliminary)
+    P-&gt;&gt;Y: fetchRawTranscript(videoId) [InnerTube]
+    Y--&gt;&gt;P: raw fragments[]
+    P-&gt;&gt;P: assert duration ≤ 30m — step:transcript ✓
+    P-&gt;&gt;P: assertLikelyEnglish(first 80 lines) — step:language ✓
+    P-&gt;&gt;W: POST /ai/split-transcript { videoId, transcript[] }
+    W-&gt;&gt;W: authMiddleware + checkRateLimit(20/min)
+    W-&gt;&gt;W: Build "[start-end] text\n…" block
+    W-&gt;&gt;G: generateContent(gemini-1.5-flash, T=0.1, max=8192)
+    G--&gt;&gt;W: candidates[].content.parts[].text (JSON array)
+    W-&gt;&gt;W: Strip ```json fences + JSON.parse + validate
+    W--&gt;&gt;P: 200 { lines: [{ text, start, duration }] }
+    P-&gt;&gt;H: step:ai ✓ — write to preprocessedTranscriptStore
+    H-&gt;&gt;H: router.push('/listen?videoId=…')</code></pre>
+
+<h3>Prompt Used (verbatim)</h3>
+<pre><code>System: "You split English YouTube transcripts into practice-ready segments for
+language learners. Return only valid JSON. No markdown, no comments."
+
+User:   "Split this transcript into appropriate-length spoken English practice
+         segments. Each segment must contain only a full number of English
+         sentences: exactly 1, 2, or 3 complete sentences. Never return 1.5 or
+         2.5 sentences, and never cut a sentence across segments. Target 30-40
+         words per segment. If a single sentence has 30-40 words or more, keep
+         it as one segment. If sentences are shorter, combine 2 or 3 consecutive
+         full sentences only when the combined segment stays within about 30-40
+         words. Preserve transcript order. Preserve approximate timing by using
+         the first source timestamp in the segment as start and the last source
+         timestamp end minus start as duration. Return a JSON array of objects
+         with exactly these keys: text, start, duration.
+
+         [0.00-2.31] hello world
+         [2.31-4.80] this is a test
+         …"</code></pre>
+
+<h2 id="ai-chat">Sequence — AI Tutor Chat (Text + Voice)</h2>
+
+<p>Triggered from <code>/listen</code> when the user taps <em>Ask AI Tutor</em>. The chat opens as a full-screen modal (<code>/ai-tutor</code>) and carries video context as route params. Voice messages are recorded to a local file, base64-encoded, and shipped to Gemini as <code>inlineData</code> — Gemini transcribes and answers in a single round trip.</p>
+
+<div class="ascii">User      ai-tutor.tsx    aiTutor.chat()    CF Worker (/ai/chat)    Gemini
+ │              │                │                  │                    │
+ │  type text   │                │                  │                    │
+ │─────────────▶│                │                  │                    │
+ │              │ buildSystemPrompt(context)        │                    │
+ │              │ chat({messages, context, settings})                    │
+ │              │───────────────▶│                  │                    │
+ │              │                │ mode === proxy?  │                    │
+ │              │                │ POST /ai/chat    │                    │
+ │              │                │ { provider, model, messages, context }│
+ │              │                │─────────────────▶│                    │
+ │              │                │                  │ authMiddleware     │
+ │              │                │                  │ checkRateLimit     │
+ │              │                │                  │ validate provider==gemini, audio≤2 MB
+ │              │                │                  │ buildSystemPrompt(ctx)
+ │              │                │                  │ callGemini(model, msgs)
+ │              │                │                  │───────────────────▶│
+ │              │                │                  │ ◀── reply text ─── │
+ │              │                │ ◀── { reply } ── │ log ai_chat        │
+ │              │ ◀── reply ─────│                  │                    │
+ │ ◀── render ──│                │                  │                    │
+ │              │                │                  │                    │
+ │  hold mic    │                │                  │                    │
+ │─────────────▶│ expo-av records audio to file://… │                    │
+ │  release     │ read file, base64-encode          │                    │
+ │─────────────▶│ infer mimeType from extension     │                    │
+ │              │ messages.push({role:'user', content:'', audio:{base64,mimeType}})
+ │              │ chat({messages, context, settings})                    │
+ │              │───────────────▶│                  │                    │
+ │              │                │─────────────────▶│ validate base64 ≤ 2 MB (413 if over)
+ │              │                │                  │ Gemini.inlineData (mimeType, data)
+ │              │                │                  │───────────────────▶│ transcribe + reply
+ │              │                │                  │ ◀── candidates ─── │
+ │              │ ◀── reply ─────│ ◀── { reply } ── │                    │
+ │ ◀── render ──│                │                  │                    │
+ ▼              ▼                ▼                  ▼                    ▼</div>
+
+<h3>Mermaid</h3>
+<pre><code>sequenceDiagram
+    actor U as User
+    participant L as /listen
+    participant T as /ai-tutor
+    participant C as aiTutor.chat()
+    participant W as CF Worker (/ai/chat)
+    participant G as Gemini API
+
+    U-&gt;&gt;L: Long-press transcript line OR tap "Ask AI Tutor"
+    L-&gt;&gt;T: router.push with { videoId, videoTitle, transcriptWindow, selection }
+    T-&gt;&gt;T: buildTranscriptWindow(lines, currentTime, ±15s)
+
+    Note over U,T: Text question
+    U-&gt;&gt;T: Type "what does 'figure out' mean?"
+    T-&gt;&gt;C: chat({ messages:[{role:'user',content}], context, settings })
+    C-&gt;&gt;W: POST /ai/chat (Bearer JWT)
+    W-&gt;&gt;W: authMiddleware + checkRateLimit
+    W-&gt;&gt;W: buildSystemPrompt(context)
+    W-&gt;&gt;G: generateContent(model, T=0.4, max=800)
+    G--&gt;&gt;W: candidates[].content.parts[].text
+    W--&gt;&gt;C: 200 { reply }
+    C--&gt;&gt;T: { reply }
+    T--&gt;&gt;U: render Markdown
+
+    Note over U,T: Voice question
+    U-&gt;&gt;T: Press &amp; hold mic → expo-av records to file://
+    T-&gt;&gt;T: FileSystem.readAsStringAsync(uri, base64)
+    T-&gt;&gt;C: chat({ messages:[{role:'user',content:'',audio:{base64,mimeType}}], context })
+    C-&gt;&gt;W: POST /ai/chat with audio attachment
+    W-&gt;&gt;W: approxBase64ByteLength ≤ AI_MAX_AUDIO_BYTES (else 413)
+    W-&gt;&gt;G: generateContent with inlineData part (mimeType, data)
+    G--&gt;&gt;W: transcription + answer in one shot
+    W--&gt;&gt;C: 200 { reply }
+    C--&gt;&gt;T: { reply }
+    T--&gt;&gt;U: render Markdown</code></pre>
+
+<h2 id="ai-context">Context Assembly &amp; System Prompts</h2>
+
+<p>The Tutor's quality depends on <em>context</em>, not chat history alone. Three context fields travel with every <code>/ai/chat</code> request:</p>
+
+<table>
+  <thead><tr><th>Field</th><th>Source</th><th>Used to…</th></tr></thead>
+  <tbody>
+    <tr><td><code>videoTitle</code> / <code>videoChannel</code> / <code>videoId</code></td><td>Route params from <code>/listen</code> (set by <code>POST /videos</code> oEmbed lookup)</td><td>Ground the model in what the learner is watching</td></tr>
+    <tr><td><code>transcriptWindow</code></td><td><code>buildTranscriptWindow(lines, currentTime, ±15s)</code> in <code>aiTutor.ts</code></td><td>Give the model the ~30-second context window around playback so pronoun references and idioms resolve correctly</td></tr>
+    <tr><td><code>selection</code></td><td>Long-press menu on a transcript line</td><td>Tell the model exactly which phrase the user wants explained</td></tr>
+  </tbody>
+</table>
+
+<h3>System Prompt Construction (Worker side)</h3>
+<p>The Worker's <code>buildSystemPrompt(ctx)</code> in <code>api/src/lib/aiSystemPrompt.ts</code> assembles the system instruction from a fixed preamble plus only the non-empty context fields. Null/empty values are stripped cleanly:</p>
+
+<pre><code>You are an English listening tutor inside the Sound Knot app.
+The learner is practicing with a YouTube video and may ask you to explain
+words, phrases, idioms, slang, grammar, or pronunciation.
+Keep answers concise (2-4 short paragraphs at most), warm, and concrete.
+Use plain Markdown only when it helps comprehension.
+Always answer in the language the learner uses. If they write in English,
+answer in English; if they write in another language, mirror them.
+
+Video: "How to make sourdough" — Joshua Weissman.
+
+Nearby transcript:
+"""
+…you wanna let it autolyse for at least thirty minutes before you start
+working in any of the salt. That gives the flour time to fully hydrate…
+"""
+
+The learner has selected: "autolyse".</code></pre>
+
+<blockquote>The client (<code>aiTutor.ts</code>) also has its own <code>buildSystemPrompt()</code> — but only for the <code>direct</code> mode path. In <code>proxy</code> mode the client-side prompt is unused; the Worker authoritatively builds it. Keep the two implementations in sync if you edit one.</blockquote>
+
+<h2 id="ai-safety">Safety, Rate Limits &amp; Observability</h2>
+
+<h3>Rate Limiting</h3>
+<table>
+  <thead><tr><th>Layer</th><th>Implementation</th><th>Default</th></tr></thead>
+  <tbody>
+    <tr><td>Per-user sliding window</td><td><code>checkRateLimit(userId, limitPerMinute)</code> in <code>api/src/lib/rateLimit.ts</code></td><td>20 req/min (env: <code>AI_RATE_LIMIT_PER_USER_PER_MINUTE</code>)</td></tr>
+    <tr><td>Audio attachment cap</td><td><code>approxBase64ByteLength(b64) &gt; AI_MAX_AUDIO_BYTES</code></td><td>2 MB (env: <code>AI_MAX_AUDIO_BYTES</code>)</td></tr>
+    <tr><td>Gemini's own quotas</td><td>Mapped to HTTP 429 on the wire</td><td>(provider-side)</td></tr>
+  </tbody>
+</table>
+<p>The limiter is in-memory and per-isolate — Cloudflare may run multiple isolates per region, so the effective limit is "best-effort". For strict accuracy swap in a Durable Object or the Workers <code>RateLimit</code> binding. For the documented threat model (runaway UI loops), best-effort is sufficient.</p>
+
+<h3>Provider Allowlist</h3>
+<p><code>/ai/chat</code> rejects any <code>provider</code> other than <code>"gemini"</code> with HTTP 400. The transcript-split endpoint accepts no <code>provider</code> field — Gemini is implicit.</p>
+
+<h3>Safety Block Handling</h3>
+<p>When Gemini returns <code>promptFeedback.blockReason</code> (e.g. <code>SAFETY</code>, <code>OTHER</code>), <code>callGemini</code> maps it to HTTP 502 with a user-facing message: <em>"The AI provider blocked the response (REASON)."</em> The client renders this as a normal error bubble — never as an assistant message — so blocked outputs cannot pollute conversation state.</p>
+
+<h3>Structured Logging</h3>
+<p>Both endpoints emit a single JSON log line per request via <code>console.log(JSON.stringify(...))</code>. View with <code>wrangler tail</code> or in the CF dashboard.</p>
+
+<table>
+  <thead><tr><th>Field</th><th><code>ai_chat</code></th><th><code>ai_split_transcript</code></th></tr></thead>
+  <tbody>
+    <tr><td><code>user_id</code></td><td>✓</td><td>✓</td></tr>
+    <tr><td><code>provider</code> / <code>model</code></td><td>✓</td><td>— (Gemini implicit)</td></tr>
+    <tr><td><code>video_id</code></td><td>—</td><td>✓</td></tr>
+    <tr><td><code>messages_length</code> / <code>audio_count</code></td><td>✓</td><td>—</td></tr>
+    <tr><td><code>fragments</code> / <code>segments</code></td><td>—</td><td>✓</td></tr>
+    <tr><td><code>latency_ms</code></td><td>✓</td><td>✓</td></tr>
+    <tr><td><code>upstream_status</code></td><td>✓</td><td>✓</td></tr>
+    <tr><td><code>outcome</code> (<code>ok</code> | <code>error</code>)</td><td>✓</td><td>✓</td></tr>
+  </tbody>
+</table>
+
+<blockquote><strong>Never logged:</strong> message content, audio bytes, transcript text, system prompts. The Worker treats payloads as opaque for telemetry purposes — this is a deliberate invariant.</blockquote>
+
+<h2 id="ai-fallbacks">Failure Modes &amp; Fallbacks</h2>
+
+<h3>Status Code Map</h3>
+<table>
+  <thead><tr><th>HTTP</th><th>Cause</th><th>Endpoint(s)</th><th>Client behavior</th></tr></thead>
+  <tbody>
+    <tr><td>400</td><td>Invalid JSON body, wrong provider, malformed messages/audio/transcript</td><td>both</td><td>Surface as inline error</td></tr>
+    <tr><td>401</td><td>Missing/invalid Bearer JWT (auth middleware)</td><td>both</td><td>Redirect to <code>/login</code></td></tr>
+    <tr><td>413</td><td>Audio attachment exceeds <code>AI_MAX_AUDIO_BYTES</code></td><td><code>/ai/chat</code></td><td>Toast "audio too large"</td></tr>
+    <tr><td>429</td><td>Per-user rate limit OR Gemini quota</td><td>both</td><td>Honor <code>Retry-After</code> header</td></tr>
+    <tr><td>500</td><td><code>GEMINI_API_KEY</code> not configured</td><td>both</td><td>"AI service is not configured"</td></tr>
+    <tr><td>502</td><td>Gemini network failure, non-429 4xx/5xx, safety block, empty response, unparseable JSON (split only)</td><td>both</td><td>Generic "AI unavailable" + fallback (see below)</td></tr>
+  </tbody>
+</table>
+
+<h3>Split-Transcript Fallback</h3>
+<p><code>preprocess.ts</code> catches <em>any</em> error from <code>POST /ai/split-transcript</code> and falls back to <code>splitTranscriptLocally(raw.lines)</code> — the deterministic sentence-first chunker described in §10.5. On success, Gemini's returned lines are still passed through <code>packTranscriptLines(response.lines)</code> so both AI and local paths use the same final row-shaping rule. The pipeline reports the <code>ai</code> step as <code>done</code> (not <code>failed</code>) with the detail <em>"AI split unavailable; prepared N local practice lines."</em> The user always gets a usable transcript.</p>
+
+<div class="ascii">  ai step
+    │
+    ├─ try: POST /ai/split-transcript
+    │     ├─ 200 OK             → packTranscriptLines(response.lines)  → step:ai ✓ ("N practice lines")
+    │     ├─ 429 / 502 / network → catch
+    │     └─ empty array         → throw → catch
+    │
+    └─ catch:
+          splitTranscriptLocally(raw.lines)  → step:ai ✓ ("AI split unavailable; N local lines")</div>
+
+<h3>Tutor Chat Failure</h3>
+<p>The Tutor has <em>no fallback</em> — an AI failure means the learner sees an error bubble. The escape hatch is the <code>direct</code> mode in <code>/ai-settings</code>: paste a personal Gemini key to bypass the Worker entirely. This is intentionally a power-user feature; the default remains <code>proxy</code>.</p>
+
+<h3>Why a Single Provider Today</h3>
+<p>Gemini is the only provider because it is the only one offering audio-in / text-out in a single call at acceptable latency and cost for the voice-question feature. The <code>AiProvider</code> type and the Worker's strict allowlist are written to accept additional providers via an adapter pattern in <code>lib/gemini.ts</code> when needed — but the data shape (<code>messages[].audio.{base64, mimeType}</code>) is Gemini-shaped today.</p>
+
+<div class="part-banner" id="deployment">Part 5 · Deployment</div>
+
+<h3>API (Cloudflare Worker)</h3>
+<pre><code>cd SoundKnotAPI
+npm install
+wrangler login
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+wrangler secret put SUPABASE_JWT_SECRET
+wrangler secret put GEMINI_API_KEY
+wrangler deploy</code></pre>
+
+<h3>Database (Supabase)</h3>
+<p>Run <code>specs/migration.sql</code> in Supabase Dashboard &gt; SQL Editor &gt; New Query.</p>
+
+<h3>App (Expo)</h3>
+<pre><code>cd SoundKnotApp
+# Ensure .env has EXPO_PUBLIC_API_URL set
+npm install
+expo start</code></pre>
+
+<hr />
+<p><small><em>Last updated: 2026-05-22 · Sound Knot V2 · Expo SDK 54 · iOS / Android / Web</em></small></p>
+
+</body>
+</html>

@@ -61,11 +61,11 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-20 (bookmarks + Library tabs).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-22 (sentence-first transcript algorithm + AI Tutor updates).</div>
 
 <h2>Status overview</h2>
 <ul>
-  <li><span class="badge done">1 ✓</span> Transcript sentence merging — full sentence per row</li>
+  <li><span class="badge done">1 ✓</span> Transcript sentence merging — strict 1/2/3 full-sentence practice chunks</li>
   <li><span class="badge done">2 ✓</span> "Ask AI Tutor" button on Listen + new conversational AI screen</li>
   <li><span class="badge done">3 ✓</span> Eye icon swapped to Ionicons (matches tab nav)</li>
   <li><span class="badge done">4 ✓</span> Active transcript line is now bolded (no background tint)</li>
@@ -77,22 +77,33 @@
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
 <h2>Item 1 — Transcript sentence merging</h2>
-<p><em>Spec:</em> "combine a full sentence (separated by dot to dot) in a row".</p>
+<p><em>Spec:</em> "combine a full sentence (separated by dot to dot) in a row". Latest constraint: every practice row must contain a full number of English sentences only — exactly one, two, or three sentences, never 1.5 or 2.5 sentences. Target row length is 30-40 words.</p>
 
 <h3>Decisions</h3>
 <div class="decision">
-  Strict sentence-boundary splitting in <code>src/services/transcript.ts</code>. The previous logic forced a flush whenever buffered fragments exceeded a 15-second window — that is the root cause of the mid-sentence splits.
+  Sentence-first splitting in <code>src/services/transcript.ts</code>. The transcript pipeline reconstructs raw YouTube fragments into one timed text stream, detects sentence boundaries, then greedily packs only whole sentence units into practice rows. The row packer never splits inside a detected sentence.
 </div>
 <ul>
-  <li>Removed the 15s soft cap; raised the safety cap to <strong>90s</strong> so we still bail out on transcripts that contain no punctuation at all (auto-generated YouTube captions for some videos lack periods entirely).</li>
-  <li>Sentence boundary widened from <code>[.!?]$</code> at end of fragment to also accept <code>[.!?]</code> followed by a closing quote/paren, e.g. <code>he said."</code>.</li>
-  <li>Trailing whitespace and stray newlines normalised when joining fragments (<code>normalizeFragmentText</code>).</li>
+  <li><code>splitIntoSentenceUnits()</code> scans the reconstructed transcript for <code>.</code>, <code>?</code>, and <code>!</code>, accepting closing quotes/parens as part of the sentence ending.</li>
+  <li>False positive guards skip decimals (<code>3.14</code>), all-caps acronym-like periods, and common abbreviations such as <code>Dr.</code>, <code>Mr.</code>, <code>e.g.</code>, <code>i.e.</code>, <code>U.S.</code>, and <code>U.K.</code>.</li>
+  <li><code>packTranscriptLines()</code> groups sentence units into chunks with <strong>1-3 complete sentences</strong>. It targets <strong>30-40 words</strong> per row: one long sentence remains one row; shorter sentences are combined only when two or three full sentences stay within the target.</li>
+  <li>Timing is preserved by mapping character positions back to source fragment timestamps. A merged row uses the first sentence start and last sentence end.</li>
+  <li>The AI split path is also post-processed through <code>packTranscriptLines()</code> in <code>src/services/preprocess.ts</code>, so both Gemini-generated and local-fallback transcript lines obey the same row-shaping rules.</li>
 </ul>
 
 <h3>Tradeoffs / known limits</h3>
 <div class="tradeoff">
-  <strong>Auto-generated transcripts without punctuation</strong> still produce one giant ≤90-second blob. There's no clean way to split those without adding a heuristic (pause-based, capitalisation-based) or running them through an AI model. Not in this delivery; flagged as a future improvement.
+  <strong>Transcripts with no punctuation</strong> cannot strictly satisfy "full English sentences" locally because there are no reliable sentence boundaries to preserve. In that case the app falls back to <code>mergeByWordCount()</code> at about <code>45</code> words to avoid a single giant row. The preferred path is the Gemini <code>/ai/split-transcript</code> preprocessing step, whose prompt now explicitly asks for exactly 1, 2, or 3 complete sentences per segment.
 </div>
+
+<h3>Current constants</h3>
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Meaning</th></tr>
+  <tr><td><code>MAX_SENTENCES_PER_CHUNK</code></td><td>3</td><td>Never pack more than three complete sentences into one practice row.</td></tr>
+  <tr><td><code>MIN_WORDS_PER_CHUNK</code></td><td>30</td><td>Flush a multi-sentence row once it reaches the lower target.</td></tr>
+  <tr><td><code>MAX_WORDS_PER_CHUNK</code></td><td>40</td><td>Do not add another sentence if the combined row would exceed this target.</td></tr>
+  <tr><td><code>UNPUNCTUATED_WORDS_PER_CHUNK</code></td><td>45</td><td>Fallback only when no sentence punctuation exists.</td></tr>
+</table>
 
 <h2>Item 3 — Eye icon alignment with nav</h2>
 <div class="decision">

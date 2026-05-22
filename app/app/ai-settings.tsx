@@ -11,6 +11,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -59,7 +61,11 @@ export default function AiSettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
-      <View style={styles.header}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'web' ? undefined : 'height'}
+      >
+        <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7} style={styles.headerBtn}>
           <Ionicons name="chevron-back" size={22} color={colors.ink} />
           <Text style={[Typography.headingSmall, { color: colors.ink }]}>Back</Text>
@@ -183,6 +189,7 @@ export default function AiSettingsScreen() {
 
         <View style={{ height: 60 }} />
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

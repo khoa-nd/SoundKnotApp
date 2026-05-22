@@ -63,14 +63,14 @@ SoundKnotApp/
 │   ├── _layout.tsx               # Root Stack navigator + font loading + splash
 │   ├── index.tsx                 # Entry redirect with auth check
 │   ├── login.tsx                 # Login / register screen
-│   ├── listen.tsx                # Listen screen (YouTube + clipped transcript box + bookmarks)
+│   ├── listen.tsx                # Listen screen (YouTube + clipped transcript box + bookmarks). Prefers preprocessed transcript from store.
 │   ├── dictation.tsx             # Dictation screen (recall + check)
 │   ├── finished.tsx              # Session complete screen (saves session to API)
-│   ├── ai-tutor.tsx              # AI tutor chat (fullScreenModal, KAV-wrapped)
+│   ├── ai-tutor.tsx              # AI tutor chat (fullScreenModal, KAV-wrapped). Header uses fixed Back + 44x44 Settings touch targets.
 │   ├── ai-settings.tsx           # AI provider/model picker
 │   └── (tabs)/                   # Tab navigator group
 │       ├── _layout.tsx           # Tab bottom nav (Home | Library | Profile)
-│       ├── home.tsx              # URL paste + library list with per-row delete (X)
+│       ├── home.tsx              # URL paste with AI-driven preprocessing flow + library list with per-row delete (X). Submit button uses sparkles icon. Shows step modal during preprocessing.
 │       ├── library.tsx           # Phrase + Vocabulary tabs (saved bookmarks)
 │       └── progress.tsx          # Stats dashboard (streak + sessions + mastery)
 ├── src/
@@ -110,7 +110,8 @@ SoundKnotApp/
 │   │   ├── home.ts               # GET /home (HomeData payload)
 │   │   ├── videos.ts             # /videos CRUD + per-video sessions
 │   │   ├── sessions.ts           # POST /sessions
-│   │   ├── transcript.ts         # YouTube transcript fetcher + sentence merger
+│   │   ├── transcript.ts         # YouTube transcript fetcher (raw + local sentence merger fallback)
+│   │   ├── preprocess.ts         # Video link preprocessing pipeline (provider check → length check → transcript → language → AI split)
 │   │   ├── ai.ts                 # AI companion service (legacy)
 │   │   ├── content.ts            # Content library API (legacy)
 │   │   └── voice.ts              # Voice command processing (legacy)
@@ -119,6 +120,7 @@ SoundKnotApp/
 │   │   ├── userStore.ts          # User profile, level, streak (loaded from API)
 │   │   ├── playerStore.ts        # Audio playback state (legacy)
 │   │   ├── sessionStore.ts       # Local session + saveSession() API call
+│   │   ├── preprocessedTranscriptStore.ts # AI-split transcript lines keyed by videoId, consumed by listen.tsx
 │   │   └── contentStore.ts       # Content library + filters (legacy)
 │   ├── types/
 │   │   └── index.ts              # All TypeScript interfaces
@@ -289,11 +291,15 @@ Index (auth check via authStore.restoreSession)
   └── authenticated   → /(tabs)/home
       ↓
 Home (Home tab)
-  ├── Paste YouTube URL → POST /videos → /listen
+  ├── Paste YouTube URL → preprocessing pipeline (provider → length → transcript → language → AI split)
+  │     └── on success → POST /videos → store preprocessed transcript → /listen
   └── Tap recent knot → /listen
       ↓
 Listen Screen
   ├── YouTube player (clipped rounded box)
+  ├── Transcript source:
+  │     ├── If preprocessedTranscriptStore has lines for videoId → use them
+  │     └── Else → fetchTranscript() (raw + local merge fallback)
   ├── Fixed transcript header ("Transcript" + N LINES) above a border
   ├── Scrolling transcript inside a clipped box (no bleed into video)
   │   ├── Active sentence rendered ink + fontWeight '900'
@@ -501,16 +507,35 @@ Singleton `apiClient` with:
 | `homeService` (`home.ts`) | `GET /home` → `HomeData` | `home.tsx`, `progress.tsx` |
 | `videoService` (`videos.ts`) | `GET /videos`, `POST /videos`, `GET /videos/:id/sessions`, `DELETE /videos/:id` | `home.tsx` (add + remove), `library.tsx` (list) |
 | `sessionService` (`sessions.ts`) | `POST /sessions` | `sessionStore.saveSession` → `finished.tsx` |
-| `transcript` (`transcript.ts`) | YouTube InnerTube via `youtube-transcript` | `listen.tsx` |
+| `transcript` (`transcript.ts`) | YouTube InnerTube via `youtube-transcript` (`fetchRawTranscript`, `splitTranscriptLocally`, `fetchTranscript`) | `listen.tsx`, `preprocess.ts` |
+| `preprocessService` (`preprocess.ts`) | Local pipeline + `POST /ai/split-transcript` | `home.tsx` |
 
 ### 9.3 Transcript Service
 
 - **Package**: `youtube-transcript` (^1.3.1) — calls YouTube's internal `get_transcript` endpoint with Android client emulation, falls back to HTML scraping
-- `fetchTranscript(videoId)` → fetches raw fragments, converts ms→seconds, merges into sentences (Algorithm 10.5)
+- `fetchRawTranscript(videoId)` → fetches raw fragments, converts ms→seconds, returns unmerged fragments (used by preprocessing)
+- `splitTranscriptLocally(fragments)` → local sentence/word-count merger (Algorithm 10.5), used as fallback when AI split fails
+- `fetchTranscript(videoId)` → convenience wrapper that fetches raw + applies local merger; used by `/listen` when no preprocessed transcript is available
 - `formatTimestamp(seconds)` → `m:ss` or `h:mm:ss`
 - `findCurrentLineIndex(lines, currentTime)` → reverse linear search for the last line whose `start ≤ currentTime`
 
-### 9.4 Hooks (legacy)
+### 9.4 Preprocess Service (`src/services/preprocess.ts`)
+
+Orchestrates the link → practice-ready transcript pipeline used by Home submit. Reports per-step status to the caller via a callback so the UI can render agent-style progress.
+
+Steps (`PreprocessStepId`):
+
+| Step | Action | Failure mode |
+|------|--------|--------------|
+| `provider` | Extract YouTube ID via regex | Non-YouTube link |
+| `duration` | YouTube oEmbed reachability + transcript-derived length check (<30 min) | Private/blocked video or >30 min |
+| `transcript` | `fetchRawTranscript(videoId)` | No transcript available |
+| `language` | ASCII letter / common-word heuristic on first 80 lines | Likely non-English transcript |
+| `ai` | `POST /ai/split-transcript` with raw fragments | Falls back to `splitTranscriptLocally()` (does not throw) |
+
+Returns `{ videoId, lines }`. Lines are written into `preprocessedTranscriptStore` before navigation.
+
+### 9.5 Hooks (legacy)
 
 `useAudioPlayer`, `useTimer`, `useAICompanion`, `useVoiceCommands`, `useRecommendations` — present but not used by V2 screens.
 
@@ -553,12 +578,12 @@ totalMinutes >= 6000  → intermediate
 otherwise             → beginner
 ```
 
-### 10.4 YouTube URL Extraction (`app/(tabs)/home.tsx:43`)
+### 10.4 YouTube URL Extraction (`src/services/preprocess.ts`)
 ```typescript
 const m = url.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([a-zA-Z0-9_-]{11})/);
 return m ? m[1] : null;
 ```
-On the home screen, a successful match calls `videoService.add({ youtube_video_id })` then navigates to `/listen` with both `videoId` and the returned `userVideoId`.
+`extractYouTubeId()` lives in `preprocess.ts` and is the first step of the preprocessing pipeline. On the home screen, submitting a URL runs the full pipeline ([§10.10](#1010-video-transcript-preprocessing-srcservicespreprocessts)) rather than navigating directly.
 
 ### 10.5 Transcript Sentence Merging (`src/services/transcript.ts`)
 
@@ -605,6 +630,8 @@ iOS modal presentation interacts poorly with `KeyboardAvoidingView`: in the defa
 - `app/ai-tutor.tsx` puts `KeyboardAvoidingView` (`behavior="padding"` on iOS, `"height"` on Android) as the **outermost** wrapper above `SafeAreaView`
 - The chat ScrollView sets `keyboardShouldPersistTaps="handled"` so taps on suggestion chips don't dismiss the keyboard
 
+**Header safe-area** — Because the screen uses a custom inline header (the Stack header is hidden), the header must reserve enough vertical room to clear the status bar/notch. The header style sets `paddingTop: Spacing.lg`, `paddingBottom: Spacing.md`, and `minHeight: 64`. Back and Settings use dedicated styles (`backBtn` with `minHeight: 44, minWidth: 72`; `settingsBtn` with fixed `44x44` circular touch target) instead of a shared `headerBtn` so neither control overlaps the status bar on devices with smaller insets.
+
 ### 10.9 Session Persistence (`app/finished.tsx:30`)
 
 ```typescript
@@ -622,6 +649,58 @@ useEffect(() => {
 }, [userVideoId]);
 ```
 The `saved` ref ensures `POST /sessions` fires exactly once on mount, even if the screen re-renders.
+
+### 10.10 Video & Transcript Preprocessing (`src/services/preprocess.ts`)
+
+Triggered from Home when the user submits a YouTube URL. Runs sequentially and reports `pending → running → done | failed` for each step so the UI can render an AI-coding-agent-style progress modal.
+
+```
+prepareYoutubeUrl(url, onStep)
+  1. provider   → extractYouTubeId(url)
+  2. duration   → assertVideoEmbeddable(videoId) via YouTube oEmbed
+  3. transcript → fetchRawTranscript(videoId)
+                → estimate duration from last fragment; reject if > 30 min
+  4. language   → ASCII-letter + common-word + non-ASCII ratio heuristic
+                  on first 80 transcript lines (rejects obviously non-English)
+  5. ai         → POST /ai/split-transcript { videoId, transcript }
+                → on success: use returned lines
+                → on failure: fallback to splitTranscriptLocally(raw.lines)
+                  (still completes the step; surfaces "AI split unavailable")
+  → return { videoId, lines }
+```
+
+Successful results are written into `preprocessedTranscriptStore` keyed by `videoId`. The `/listen` screen reads this store first; if absent, it falls back to `fetchTranscript()` (raw + local merge).
+
+### 10.11 AI Transcript Splitting Endpoint (`api/src/routes/ai.ts`)
+
+`POST /ai/split-transcript` (authenticated, rate-limited via existing `checkRateLimit`).
+
+Request:
+```json
+{
+  "videoId": "abc123",
+  "transcript": [
+    { "text": "hello world", "start": 0.0, "duration": 2.1 }
+  ]
+}
+```
+
+Behavior:
+1. Validates body and per-line shape (`text` non-empty string, `start`/`duration` finite numbers).
+2. Builds a timestamped transcript block `[start-end] text` per line.
+3. Calls Gemini (`gemini-1.5-flash`, `temperature: 0.1`, `maxOutputTokens: 8192`) with a JSON-only system prompt instructing it to emit complete sentence-like segments of ~6–22 words preserving order and timing.
+4. Strips optional `\`\`\`json` fences from the reply and parses as JSON.
+5. Validates each segment (`text` string, finite `start`, finite `duration`), normalizes whitespace, clamps `start ≥ 0` and `duration ≥ 0.5`.
+
+Response: `{ "lines": [{ text, start, duration }, …] }`.
+
+Failure modes:
+- `400` — invalid request body
+- `429` — rate limit exceeded
+- `500` — `GEMINI_API_KEY` not configured
+- `502` — Gemini upstream error, blocked response, empty output, or unparseable JSON
+
+The endpoint logs a structured `ai_split_transcript` event with `user_id`, `video_id`, fragment count, segment count, latency, and outcome.
 
 ---
 
@@ -803,4 +882,4 @@ Radius.pill         → 26px fully rounded
 
 ---
 
-*Last updated: 2026-05-20 · Sound Knot V2 · Expo SDK 54 · iOS / Android / Web*
+*Last updated: 2026-05-22 · Sound Knot V2 · Expo SDK 54 · iOS / Android / Web*
