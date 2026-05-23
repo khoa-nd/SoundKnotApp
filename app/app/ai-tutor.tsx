@@ -618,14 +618,30 @@ function buildPromptSuggestions(): PromptSuggestion[] {
     {
       label: 'List of keywords',
       prompt:
-        'Create a numbered list of 10 key vocabulary words from this video. Put each vocabulary item on its own numbered list line. For each word, use exactly this format: **word** /pronunciation/ part of speech - meaning. Keep each explanation short and useful for an English learner.',
+        [
+          'Curate 8 high-value vocabulary items from the nearby transcript for an English listening learner.',
+          'Choose words or short lexical chunks that are actually useful for understanding this video, not obvious filler words and not random rare words.',
+          'Prefer items that carry meaning, argument, emotion, or speaker intent. Avoid duplicates and avoid proper nouns unless essential.',
+          'Return only a numbered list. No intro, no outro.',
+          'Each item must use exactly this format:',
+          '**word or chunk** - learner-friendly meaning in 1 short sentence. Transcript: "exact short transcript quote that uses it".',
+          'Keep each explanation practical: explain how the word/chunk works in this context, not a dictionary definition.',
+        ].join(' '),
       wide: true,
       align: 'right',
     },
     {
       label: 'List of grammars or phrases',
       prompt:
-        'Create a numbered list of 5 grammatical phrases or useful phrases from the transcript. Put each phrase on its own numbered list line. For each phrase, use this format: **phrase** - what it is used for in one sentence. Transcript: "exact transcript sentence that uses this phrase".',
+        [
+          'Curate 6 useful spoken-English phrases, grammar patterns, discourse markers, or sentence frames from the nearby transcript.',
+          'Choose expressions a learner could reuse in real conversation, especially phrases that show opinion, uncertainty, emphasis, connection, or explanation.',
+          'Do not list single vocabulary words here unless they are part of a reusable phrase. Avoid generic fillers unless the phrase teaches natural spoken structure.',
+          'Return only a numbered list. No intro, no outro.',
+          'Each item must use exactly this format:',
+          '**phrase or pattern** - what it means and when to use it in 1 short sentence. Transcript: "exact short transcript quote that uses it".',
+          'Keep the phrase exactly as spoken when possible, but clean obvious caption artifacts like repeated arrows or speaker markers.',
+        ].join(' '),
       wide: true,
       align: 'right',
     },
