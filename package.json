@@ -11,6 +11,7 @@
     "dev:api": "npm run dev -w api",
     "deploy:api": "npm run deploy -w api",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "test:transcript": "npm run test:transcript -w app"
   }
 }

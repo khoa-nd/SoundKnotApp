@@ -453,6 +453,7 @@
     <tr><td>Video (web)</td><td>YouTube IFrame embed + postMessage API</td><td>—</td></tr>
     <tr><td>WebView (native)</td><td>react-native-webview</td><td>13.15.0</td></tr>
     <tr><td>Transcript</td><td>youtube-transcript</td><td>^1.3.1</td></tr>
+    <tr><td>Test runner</td><td>tsx</td><td>^4.20.6</td></tr>
     <tr><td>Icons</td><td>@expo/vector-icons (Ionicons)</td><td>^15.0.3</td></tr>
     <tr><td>SVG</td><td>react-native-svg</td><td>15.12.1</td></tr>
     <tr><td>Animations</td><td>react-native-reanimated</td><td>~4.1</td></tr>
@@ -536,6 +537,10 @@
 │   └── utils/
 │       ├── audio.ts              # Audio session config (web-guarded), URL validation
 │       └── time.ts               # Time formatting, greeting
+├── test/
+│   ├── scripts/
+│   │   └── transcript-split-review.ts # CLI runner for transcript split review
+│   └── resources/                # Input/output files for local transcript review
 ├── assets/                       # App icons, splash, favicon
 ├── specs/                        # Documentation
 ├── design/                       # Prototype design files (reference only)
@@ -923,7 +928,7 @@ interface SavedPhrase {
     <tr><td><code>homeService</code> (<code>home.ts</code>)</td><td>GET /home → <code>HomeData</code></td><td><code>home.tsx</code>, <code>progress.tsx</code></td></tr>
     <tr><td><code>videoService</code> (<code>videos.ts</code>)</td><td>GET /videos, POST /videos, GET /videos/:id/sessions, DELETE /videos/:id</td><td><code>home.tsx</code> (list/add/remove), <code>listen.tsx</code> / practice flows (sessions)</td></tr>
     <tr><td><code>sessionService</code> (<code>sessions.ts</code>)</td><td>POST /sessions</td><td><code>sessionStore.saveSession</code> → <code>finished.tsx</code></td></tr>
-    <tr><td><code>transcript</code> (<code>transcript.ts</code>)</td><td>YouTube InnerTube via <code>youtube-transcript</code></td><td><code>listen.tsx</code>, <code>preprocess.ts</code></td></tr>
+    <tr><td><code>transcript</code> (<code>transcript.ts</code>)</td><td>YouTube InnerTube via <code>youtube-transcript</code>; local soft-boundary split; optional <code>/v1/resegment</code> fallback</td><td><code>listen.tsx</code>, <code>preprocess.ts</code>, transcript review runner</td></tr>
     <tr><td><code>preprocessService</code> (<code>preprocess.ts</code>)</td><td>Local pipeline + POST /ai/split-transcript</td><td><code>home.tsx</code></td></tr>
   </tbody>
 </table>
@@ -932,8 +937,9 @@ interface SavedPhrase {
 <ul>
   <li><strong>Package</strong>: <code>youtube-transcript</code> (^1.3.1) — calls YouTube's internal <code>get_transcript</code> endpoint with Android client emulation, falls back to HTML scraping</li>
   <li><code>fetchRawTranscript(videoId)</code> → fetches raw fragments, converts ms→seconds, returns unmerged fragments (used by preprocessing)</li>
-  <li><code>splitTranscriptLocally(fragments)</code> → local sentence-first practice chunker (Algorithm 10.5), used as fallback when AI split fails</li>
-  <li><code>fetchTranscript(videoId)</code> → convenience wrapper that fetches raw + applies local merger; used by <code>/listen</code> when no preprocessed transcript is available</li>
+  <li><code>splitTranscriptLocally(fragments)</code> → local sentence-first + soft-boundary practice chunker (Algorithm 10.5), used as fallback when AI split fails</li>
+  <li><code>fetchTranscript(videoId)</code> → convenience wrapper that fetches raw, applies local splitter, then applies guarded AI resegment fallback only for residual oversized chunks; used by <code>/listen</code> when no preprocessed transcript is available</li>
+  <li><code>applyAiFallback(chunks)</code> → sends only chunks over <code>AI_FALLBACK_WORD_CEILING</code> and with ≤1 sentence ending to <code>aiService.resegmentChunk()</code>; consumes only returned <code>wordOffset</code> values and remaps them to original text/timestamps</li>
   <li><code>formatTimestamp(seconds)</code> → <code>m:ss</code> or <code>h:mm:ss</code></li>
   <li><code>findCurrentLineIndex(lines, currentTime)</code> → reverse linear search for the last line whose <code>start ≤ currentTime</code></li>
 </ul>
@@ -1000,7 +1006,7 @@ return m ? m[1] : null;</code></pre>
 <p><code>extractYouTubeId()</code> lives in <code>preprocess.ts</code> and is the first step of the preprocessing pipeline. On the home screen, submitting a URL runs the full pipeline (§10.10) rather than navigating directly.</p>
 
 <h3>10.5 Transcript Sentence Chunking (<code>src/services/transcript.ts</code>)</h3>
-<p>YouTube returns transcripts as ~2-3 second fragments. SoundKnot now treats transcript rows as <strong>recall-practice chunks</strong>, not subtitle cues. The invariant is strict: a rendered row must contain a full number of English sentences — exactly <strong>1</strong>, <strong>2</strong>, or <strong>3</strong> complete sentences. It should never display 1.5 or 2.5 sentences.</p>
+<p>YouTube returns transcripts as ~2-3 second fragments. SoundKnot treats transcript rows as <strong>recall-practice chunks</strong>, not subtitle cues. The splitter prefers complete sentence boundaries when captions are clean, but now includes a local soft-boundary stabilizer for sparse-punctuation auto-captions. Target chunk size is <strong>20-45 words</strong>; the stabilizer prevents single malformed "sentences" from becoming hundreds of words.</p>
 
 <p><strong>Stage A — Rebuild timed text</strong></p>
 <ol>
@@ -1009,7 +1015,7 @@ return m ? m[1] : null;</code></pre>
   <li>This lets later sentence chunks preserve useful <code>start</code>/<code>duration</code> even when a sentence crosses several raw YouTube fragments.</li>
 </ol>
 
-<p><strong>Stage B — Detect full sentence units</strong></p>
+<p><strong>Stage B — Detect sentence units, then stabilize oversized units</strong></p>
 <ol>
   <li><code>splitIntoSentenceUnits()</code> scans the rebuilt text for sentence terminators: <code>.</code>, <code>?</code>, and <code>!</code>, including closing quotes/parens after the terminator.</li>
   <li><code>sentenceBoundaryEnd()</code> rejects common false positives:
@@ -1020,7 +1026,17 @@ return m ? m[1] : null;</code></pre>
     </ul>
   </li>
   <li><code>lineFromSpan()</code> converts each sentence span back into a <code>TranscriptLine</code> with text, start, and duration.</li>
+  <li>If a detected sentence exceeds <code>MAX_WORDS_PER_CHUNK</code>, <code>splitLongSentenceSpan()</code> splits the same timed span on soft boundaries before returning it to the packer.</li>
 </ol>
+
+<p><strong>Soft-boundary priority</strong></p>
+<ol>
+  <li>Punctuation: <code>;</code>, <code>:</code>, and <code>,</code></li>
+  <li>Coordinating conjunctions at word boundaries: <code>and</code>, <code>but</code>, <code>so</code>, <code>because</code>, <code>or</code>, <code>yet</code>, <code>nor</code></li>
+  <li>Common spoken fillers: <code>you know</code>, <code>I mean</code>, <code>like</code>, <code>right</code>, <code>well</code></li>
+  <li>Hard fallback: cut at <code>HARD_SPLIT_WORDS = 45</code> when no soft boundary gives a valid split.</li>
+</ol>
+<p>Each soft split is timestamp-preserving: it reuses the original <code>times[]</code> array and emits sub-spans through <code>lineFromSpan()</code>. AI text is not involved in Stage B.</p>
 
 <p><strong>Stage C — Pack only whole sentences</strong></p>
 <ul>
@@ -1028,20 +1044,41 @@ return m ? m[1] : null;</code></pre>
   <li>Constants:
     <ul>
       <li><code>MAX_SENTENCES_PER_CHUNK = 3</code></li>
-      <li><code>MIN_WORDS_PER_CHUNK = 30</code></li>
-      <li><code>MAX_WORDS_PER_CHUNK = 40</code></li>
+      <li><code>MIN_WORDS_PER_CHUNK = 20</code></li>
+      <li><code>MAX_WORDS_PER_CHUNK = 45</code></li>
+      <li><code>AI_FALLBACK_WORD_CEILING = 60</code></li>
     </ul>
   </li>
-  <li>If a single sentence has 30-40+ words, it stays as one row. The algorithm does not split it mid-sentence.</li>
-  <li>If sentences are shorter, it combines 2 or 3 consecutive full sentences only when the combined row stays within the 30-40 word target.</li>
+  <li>If sentences are short, it combines up to 3 consecutive full sentence units when the combined row stays within the 20-45 word target.</li>
+  <li>If a detected sentence is oversized, it has already been split into soft-boundary units before this pack step.</li>
   <li>Every merged row uses <code>start</code> from the first sentence and <code>duration</code> through the last sentence.</li>
+</ul>
+
+<p><strong>Stage D — optional AI fallback for residuals</strong></p>
+<ul>
+  <li><code>fetchTranscript(videoId)</code> calls <code>applyAiFallback(localLines)</code> after local splitting.</li>
+  <li>A chunk qualifies only if it is <strong>both</strong> above <code>AI_FALLBACK_WORD_CEILING = 60</code> words and has <code>&lt;= 1</code> sentence ending.</li>
+  <li>The fallback calls <code>aiService.resegmentChunk(text, { targetMinWords: 20, targetMaxWords: 45 })</code>, which posts to <code>${Config.aiEndpoint}/v1/resegment</code>.</li>
+  <li>Returned AI text is ignored. Only <code>wordOffset</code> is consumed, then remapped onto the original chunk text/timestamps by <code>remapAiWordOffsets()</code>. Invalid offsets or network failures preserve the local chunk and log <code>console.warn</code>.</li>
+  <li>The transcript review runner defaults to local-only. Use <code>--with-ai</code> to exercise the full <code>fetchTranscript()</code> path.</li>
 </ul>
 
 <p><strong>Fallback — no punctuation</strong></p>
 <ul>
   <li>If the transcript has no sentence punctuation at all, local code cannot strictly know English sentence boundaries. In that case <code>mergeByWordCount()</code> flushes every <code>UNPUNCTUATED_WORDS_PER_CHUNK = 45</code> words.</li>
-  <li>The preferred path for messy ASR is Home preprocessing via <code>POST /ai/split-transcript</code>, whose prompt asks Gemini to infer full English sentence boundaries and return 1/2/3-sentence segments.</li>
+  <li>For messy ASR, the local soft-boundary stabilizer runs first. AI fallback is reserved for residual oversized chunks, not the full transcript.</li>
 </ul>
+
+<p><strong>Review runner</strong></p>
+<pre><code># Local Stage 1 only
+npm run test:transcript -w app -- --url "https://www.youtube.com/watch?v=RzcD5jQgZeI" &gt; "app/test/resources/ts_output_1.txt"
+
+# Full fetchTranscript path, including guarded AI fallback if residual chunks qualify
+npm run test:transcript -w app -- --with-ai --url "https://www.youtube.com/watch?v=RzcD5jQgZeI" &gt; "app/test/resources/ts_output_1_with_ai.txt"
+
+# JSON review output
+npm run test:transcript -w app -- --json --url "https://www.youtube.com/watch?v=RzcD5jQgZeI"</code></pre>
+<p>The current reference video produces 21 local chunks from 97 raw fragments. The previous 279-word and 166-word chunks are split; the observed maximum is 45 words. With <code>--with-ai</code>, output is identical for this case because no residual chunk exceeds the AI fallback ceiling.</p>
 
 <h3>10.6 Active-Line Highlight + Auto-Scroll (<code>app/listen.tsx</code>)</h3>
 <ul>

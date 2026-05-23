@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-22 (AI Tutor generated saves, Home video actions, Library revamp).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-23 (Transcript split stabilization plan).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -74,6 +74,7 @@
   <li><span class="badge done">7 ✓</span> Home screen — video library list replaces Recent sessions</li>
   <li><span class="badge done">8 ✓</span> Bookmark per transcript line + Library Phrase/Vocabulary tabs</li>
   <li><span class="badge done">9 ✓</span> AI Tutor generated vocabulary/phrases + Library card UX + Home copy/delete actions</li>
+  <li><span class="badge pending">10 …</span> Transcript split stabilization — hybrid local soft-boundary + AI fallback</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -306,6 +307,113 @@ Content-Type: application/json
   <tr><td><code>app/(tabs)/home.tsx</code></td><td>Video copy URL action, DB-backed delete action, 404-as-already-deleted handling</td></tr>
   <tr><td><code>api/src/routes/videos.ts</code></td><td><code>DELETE /videos/:id</code> route with ownership check and session cleanup</td></tr>
 </table>
+
+<h2>Item 10 — Transcript split stabilization</h2>
+<p><em>Problem:</em> the current splitter in <code>src/services/transcript.ts</code> treats a detected sentence as atomic — it never splits inside a sentence even when the "sentence" is hundreds of words long. YouTube auto-captions frequently produce sparse punctuation, so the algorithm emits monster chunks. The test runner confirms this:</p>
+<pre>cd app && npm run test:transcript -- --url https://www.youtube.com/watch?v=RzcD5jQgZeI
+
+→ Chunk #4: 279 words, 1 sentence  (target 30–40)
+→ Chunk #10: 166 words, 1 sentence</pre>
+<p>Goal: every chunk lands in the 20–45 word range without giving up the sentence-boundary protection that keeps clean transcripts clean.</p>
+
+<h3>Decision — Hybrid local + synchronous AI fallback</h3>
+<div class="decision">
+  Two-stage pipeline inside <code>src/services/transcript.ts</code>. Stage 1 is deterministic soft-boundary splitting (no network). Stage 2 is a synchronous AI call <strong>only for chunks that remain oversized</strong>, routed through the existing provider-agnostic <code>Config.aiEndpoint</code> so the app stays decoupled from any specific LLM vendor — the backend picks the provider.
+</div>
+
+<h3>Stage 1 — Local soft-boundary splitting</h3>
+<ul>
+  <li>Add <code>splitLongSentence(sentence, times)</code>. When a detected sentence exceeds <code>MAX_WORDS_PER_CHUNK</code> (40), split it on soft boundaries in this priority order:
+    <ol>
+      <li><code>;</code> and <code>:</code></li>
+      <li><code>,</code> followed by whitespace</li>
+      <li>Coordinating conjunctions at word boundary: <code>and</code>, <code>but</code>, <code>so</code>, <code>because</code>, <code>or</code>, <code>yet</code>, <code>nor</code></li>
+      <li>Common spoken fillers: <code>you know</code>, <code>I mean</code>, <code>like</code>, <code>right</code>, <code>well</code></li>
+    </ol>
+  </li>
+  <li>Apply greedily but only when the left piece is at least <code>MIN_WORDS_PER_CHUNK</code> (30). If no soft boundary yields a valid split, fall back to a hard word-count cut at <code>UNPUNCTUATED_WORDS_PER_CHUNK</code> (45) — delegate to <code>mergeByWordCount</code> rather than duplicating the cut logic.</li>
+  <li>Timestamps survive by reusing the existing <code>buildTimedText</code> / <code>lineFromSpan</code> machinery (transcript.ts:102, 150). Soft splits produce sub-spans of the same <code>times[]</code> array, so each new chunk gets accurate <code>start</code> / <code>duration</code> without recalculation.</li>
+  <li><code>splitIntoSentenceUnits</code> invokes <code>splitLongSentence</code> on every detected sentence that exceeds <code>MAX_WORDS_PER_CHUNK</code> before returning to <code>packTranscriptLines</code>. <code>packTranscriptLines</code> itself is unchanged.</li>
+</ul>
+
+<h3>Stage 2 — AI fallback for residuals</h3>
+<ul>
+  <li>After <code>splitTranscriptLocally</code> runs, scan the chunk list. A chunk is sent to AI if it is <strong>both</strong> <code>&gt; AI_FALLBACK_WORD_CEILING</code> (proposed: 60) <strong>and</strong> contains <code>≤ 1</code> sentence boundary.</li>
+  <li>Synchronous during <code>fetchTranscript</code> — the transcript load awaits the AI call. Acceptable because (a) only the residual chunks are sent, not the whole transcript, (b) most videos won't trigger it at all, (c) it keeps the data flow simple.</li>
+  <li>Request payload (per chunk):
+    <pre>POST {Config.aiEndpoint}/v1/resegment
+{
+  "text": "&lt;chunk text&gt;",
+  "targetMinWords": 20,
+  "targetMaxWords": 45
+}</pre>
+  </li>
+  <li>Expected response:
+    <pre>{ "splits": [
+  { "text": "...", "wordOffset": 0 },
+  { "text": "...", "wordOffset": 23 }
+] }</pre>
+  </li>
+  <li><strong>AI text is never trusted for word content</strong> — only <code>wordOffset</code> is consumed. The client re-maps each <code>wordOffset</code> to a character index in the original chunk text, then uses the existing <code>times[]</code> slice to assign timestamps. This makes the fallback robust against hallucination.</li>
+  <li>Per-video in-process cache keyed by <code>videoId</code> avoids re-calling within the same session. Persistent caching is out of scope.</li>
+</ul>
+
+<h3>Failure handling</h3>
+<div class="tradeoff">
+  AI failure must never break transcript loading. If the endpoint is unreachable, returns a non-2xx, returns an invalid shape, or any <code>wordOffset</code> fails range validation against the original chunk, the Stage 1 chunk is preserved as-is and a <code>console.warn</code> is logged. The user sees the locally-split result, which is already much better than today.
+</div>
+
+<h3>Files to modify</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>src/services/transcript.ts</code></td><td>Add <code>splitLongSentence</code> helper; modify <code>splitIntoSentenceUnits</code> to invoke it on oversized sentences; add <code>applyAiFallback(chunks, videoId)</code>; extend <code>fetchTranscript</code> to await <code>applyAiFallback</code> after <code>splitTranscriptLocally</code>; add <code>AI_FALLBACK_WORD_CEILING = 60</code></td></tr>
+  <tr><td><code>src/services/ai.ts</code></td><td>Add <code>resegmentChunk(text, opts)</code> that POSTs to <code>${Config.aiEndpoint}/v1/resegment</code> and returns <code>{ splits: { text, wordOffset }[] }</code>. Reuse the existing fetch pattern (ai.ts:18–30)</td></tr>
+  <tr><td><code>test/scripts/transcript-split-review.ts</code></td><td>Add <code>--with-ai</code> flag that runs the full <code>fetchTranscript</code> pipeline (not just <code>packTranscriptLines</code>) so the AI fallback can be exercised end-to-end against a YouTube source</td></tr>
+</table>
+
+<h3>Reused existing functions</h3>
+<ul>
+  <li><code>buildTimedText</code>, <code>lineFromSpan</code> (transcript.ts:102, 150) — timestamp-preserving sub-spans for <code>splitLongSentence</code>.</li>
+  <li><code>countSentenceEndings</code>, <code>sentenceBoundaryEnd</code> (transcript.ts:42, 130) — unchanged, still gate top-level sentence detection.</li>
+  <li><code>mergeByWordCount</code> (transcript.ts:55) — last-resort branch of <code>splitLongSentence</code> delegates here rather than re-implementing word-count cuts.</li>
+  <li><code>aiService</code> fetch pattern (ai.ts:18–30) — <code>resegmentChunk</code> follows the shape of <code>askQuestion</code> / <code>explainPhrase</code>.</li>
+</ul>
+
+<h3>New constants</h3>
+<table>
+  <tr><th>Constant</th><th>Value</th><th>Meaning</th></tr>
+  <tr><td><code>AI_FALLBACK_WORD_CEILING</code></td><td>60</td><td>Chunks above this word count, with <code>≤ 1</code> sentence boundary, are sent to AI for re-segmentation.</td></tr>
+</table>
+
+<h3>Verification</h3>
+<ol>
+  <li><strong>Stage 1 only</strong> — <code>cd app && npm run test:transcript -- --url https://www.youtube.com/watch?v=RzcD5jQgZeI</code>. Expect: no chunk over 60 words; chunks #4 and #10 from the current output break into 3–5 pieces in the 20–45 word range with sensible boundary text (clause starts like "And…", "Because…", "You know…"). Total chunk count rises from 11 to ~18–22.</li>
+  <li><strong>Stage 2 happy path</strong> — point <code>EXPO_PUBLIC_AI_ENDPOINT</code> at a local mock returning a canned <code>splits</code> payload, run with <code>--with-ai</code>. Confirm: only chunks above the ceiling are POSTed; returned splits are accepted; timestamps remain monotonically increasing and within the original chunk's time range.</li>
+  <li><strong>Stage 2 failure path</strong> — set <code>EXPO_PUBLIC_AI_ENDPOINT</code> to an unreachable host and re-run with <code>--with-ai</code>. Expect: script completes, <code>console.warn</code> per failed chunk, output equals the Stage 1 result, no crashes.</li>
+  <li><strong>Regression on clean source</strong> — run against a TED talk or a well-punctuated podcast. Expect: chunk boundaries unchanged from today (Stage 1 never triggers, Stage 2 never triggers).</li>
+  <li><code>npx tsc --noEmit</code> clean after edits.</li>
+</ol>
+
+<h3>Backend contract</h3>
+<p>The endpoint expected by the app — the backend team picks the underlying provider (Gemini, Claude, OpenAI, etc.) and prompt:</p>
+<pre>POST {apiBaseUrl-or-aiEndpoint}/v1/resegment
+Content-Type: application/json
+
+{
+  "text": "<one oversized transcript chunk>",
+  "targetMinWords": 20,
+  "targetMaxWords": 45
+}
+
+→ 200 {
+  "splits": [
+    { "text": "<sub-chunk 1 text>", "wordOffset": 0 },
+    { "text": "<sub-chunk 2 text>", "wordOffset": 23 },
+    ...
+  ]
+}
+→ non-2xx { "error": "..." }</pre>
+<p><code>wordOffset</code> is the zero-based word index in the original <code>text</code> where each sub-chunk starts. The first sub-chunk must have <code>wordOffset: 0</code>. Sub-chunks should each fall in the target word range; the client is responsible for tolerating mild violations.</p>
 
 <h2>Anything else worth knowing</h2>
 <ul>

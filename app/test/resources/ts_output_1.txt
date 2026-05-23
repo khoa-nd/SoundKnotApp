@@ -1,0 +1,113 @@
+
+> soundknot-app@1.0.0 test:transcript
+> tsx test/scripts/transcript-split-review.ts --url https://www.youtube.com/watch?v=RzcD5jQgZeI
+
+Source: YouTube RzcD5jQgZeI
+Input fragments: 97
+Output chunks: 21
+
+#1
+time: 0:02.960 - 0:10.639
+words: 20 | sentences: 3 | chars: 107
+Uh, big ridiculous question. I thought you were a good person to ask. What's the point of this whole thing?
+
+#2
+time: 0:10.639 - 0:28.960
+words: 41 | sentences: 2 | chars: 212
+What's the meaning of life and our existence here on Earth? I somehow think that the universe has a big story to tell or it's telling a big story the whole time and our consciousness is part of that bigger story.
+
+#3
+time: 0:28.960 - 0:46.039
+words: 38 | sentences: 1 | chars: 200
+So the consciousness of the whole of the universe the big the huge story is something that is probably the meaning of life and or the meaning of life of our individual life is to understand that story
+
+#4
+time: 0:46.039 - 1:00.317
+words: 40 | sentences: 1 | chars: 218
+and that that is something for example that I understood quite well on LSD when I walked in the mountains uh about a month ago because the mountains they actually you know they they're quite high up into the atmosphere
+
+#5
+time: 1:00.317 - 1:16.033
+words: 42 | sentences: 1 | chars: 212
+and They are made of all kinds of minerals and so they are receiving cosmic energy that comes you know that hits our planet and um walking up there and it doesn't I guess if you're on LSD you're more open somehow
+
+#6
+time: 1:16.033 - 1:28.886
+words: 36 | sentences: 1 | chars: 174
+because you're not closing with your default mode network that you know this is the tree and this is the path and this is the mountain and now it's 2:00 and I have to go back
+
+#7
+time: 1:28.886 - 1:40.880
+words: 38 | sentences: 1 | chars: 195
+and the rain like this you're more you're more open so you're more like perceiving I I that's at least the that's the impression I had and I couldn't put it in words what exactly I was perceiving
+
+#8
+time: 1:40.880 - 1:55.190
+words: 29 | sentences: 1 | chars: 148
+but I was perceiving more of the bigger story and I think that is inspiration and I think those moments bring you quite close to the meaning of life
+
+#9
+time: 1:55.190 - 2:10.013
+words: 41 | sentences: 1 | chars: 191
+and I wouldn't I wouldn't put that meaning on life in words it's it It is an experience and I think that uh for me as an artist it was an important experience to make to get close to that and
+
+#10
+time: 2:10.013 - 2:19.451
+words: 20 | sentences: 2 | chars: 104
+and that is uh that is what you can achieve in each of your professions. you know, like a mathematician.
+
+#11
+time: 2:19.617 - 2:31.520
+words: 36 | sentences: 1 | chars: 169
+He comes to that point when he like hears more like he grasps like connections and he might not be able to put it into a formula yet, but if he's if he's an open person,
+
+#12
+time: 2:31.520 - 2:39.120
+words: 29 | sentences: 1 | chars: 156
+he might be a better mathematician because he can understand a bit more of the of of the meaning of everything >> of this bigger story that's being written.
+
+#13
+time: 2:39.120 - 2:45.840
+words: 22 | sentences: 2 | chars: 101
+>> Yeah. And uh I mean I mentioned to you my substack which I think is going to be the best substack.
+
+#14
+time: 2:45.840 - 2:50.400
+words: 22 | sentences: 2 | chars: 113
+>> Do you think it's possible it's the greatest substack of all time in history? >> That's what it's going to be.
+
+#15
+time: 2:50.400 - 2:57.360
+words: 21 | sentences: 3 | chars: 105
+>> It's going to be Yeah. >> Stone Sapion substack. But something else >> I just hope you actually do it.
+
+#16
+time: 2:57.360 - 3:08.220
+words: 35 | sentences: 2 | chars: 185
+>> Well, you should become a subscriber. >> I will definitely subscribe. I re I really realize that that there is a greater a bigger story and it's somehow interesting to try to open up
+
+#17
+time: 3:08.220 - 3:20.244
+words: 45 | sentences: 1 | chars: 213
+because if we live that's why I like to be in nature also quite a lot you you get you get you have a better access we live boxed in Va Benjamin called us like the boxed human beings like we're living in the cities
+
+#18
+time: 3:20.244 - 3:25.897
+words: 20 | sentences: 1 | chars: 105
+we're doing we're waking up we're doing like it's good to be therefore it's good to be outside the system
+
+#19
+time: 3:25.897 - 3:37.822
+words: 37 | sentences: 1 | chars: 186
+and I hope that my art can contribute to you know freeing the brain waves to you know understanding a bit more what that is I don't know but I think the process of understanding more and
+
+#20
+time: 3:37.822 - 3:51.602
+words: 41 | sentences: 1 | chars: 199
+and connecting in different ways that is what I'm going for because I think that is the meaning of life well uh thank you for doing that with all of your work and for inspiring us all to do the same.
+
+#21
+time: 3:51.686 - 3:58.435
+words: 13 | sentences: 3 | chars: 64
+Thank you so much for talking today. >> It was great. Thank you.
+

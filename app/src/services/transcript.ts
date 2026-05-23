@@ -2,6 +2,7 @@
 // Uses youtube-transcript npm package (InnerTube API with HTML fallback)
 
 import { fetchTranscript as ytFetchTranscript } from 'youtube-transcript';
+import { aiService } from './ai';
 
 export interface TranscriptLine {
   text: string;
@@ -15,9 +16,19 @@ export interface TranscriptData {
 }
 
 const MAX_SENTENCES_PER_CHUNK = 3;
-const MIN_WORDS_PER_CHUNK = 30;
-const MAX_WORDS_PER_CHUNK = 40;
+const MIN_WORDS_PER_CHUNK = 20;
+const MAX_WORDS_PER_CHUNK = 45;
 const UNPUNCTUATED_WORDS_PER_CHUNK = 45;
+const HARD_SPLIT_WORDS = 45;
+const AI_FALLBACK_WORD_CEILING = 60;
+const SOFT_CONJUNCTIONS = new Set(['and', 'but', 'so', 'because', 'or', 'yet', 'nor']);
+const SPOKEN_FILLERS = [
+  ['you', 'know'],
+  ['i', 'mean'],
+  ['like'],
+  ['right'],
+  ['well'],
+];
 const COMMON_ABBREVIATIONS = new Set([
   'mr',
   'mrs',
@@ -99,6 +110,26 @@ function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+function wordSpans(text: string, startIndex: number, endIndex: number): { text: string; start: number; end: number }[] {
+  const slice = text.slice(startIndex, endIndex + 1);
+  const matches = slice.matchAll(/\S+/g);
+  return Array.from(matches, (match) => ({
+    text: match[0],
+    start: startIndex + (match.index ?? 0),
+    end: startIndex + (match.index ?? 0) + match[0].length - 1,
+  }));
+}
+
+function normalizedWord(word: string): string {
+  return word.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '');
+}
+
+function firstNonSpaceAtOrAfter(text: string, index: number, maxIndex: number): number {
+  let cursor = Math.min(index, maxIndex);
+  while (cursor <= maxIndex && /\s/.test(text[cursor])) cursor++;
+  return Math.min(cursor, maxIndex);
+}
+
 function buildTimedText(fragments: TranscriptLine[]): { text: string; times: number[] } {
   let text = '';
   const times: number[] = [];
@@ -158,6 +189,69 @@ function lineFromSpan(text: string, times: number[], startIndex: number, endInde
   };
 }
 
+function bestBoundary(boundaries: number[], fallback: number): number {
+  const valid = boundaries
+    .filter((count) => count >= MIN_WORDS_PER_CHUNK && count <= MAX_WORDS_PER_CHUNK)
+    .sort((a, b) => b - a);
+  return valid[0] ?? fallback;
+}
+
+function splitLongSentenceSpan(text: string, times: number[], startIndex: number, endIndex: number): TranscriptLine[] {
+  const result: TranscriptLine[] = [];
+  let cursor = startIndex;
+
+  while (cursor <= endIndex) {
+    const words = wordSpans(text, cursor, endIndex);
+    if (words.length === 0) break;
+    if (words.length <= MAX_WORDS_PER_CHUNK) {
+      const line = lineFromSpan(text, times, cursor, endIndex);
+      if (line.text) result.push(line);
+      break;
+    }
+
+    const commaBoundaries: number[] = [];
+    const conjunctionBoundaries: number[] = [];
+    const fillerBoundaries: number[] = [];
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const normalized = normalizedWord(word.text);
+      const leftCountAfterWord = i + 1;
+      const leftCountBeforeWord = i;
+
+      if (/[,;:]$/.test(word.text)) commaBoundaries.push(leftCountAfterWord);
+      if (SOFT_CONJUNCTIONS.has(normalized)) conjunctionBoundaries.push(leftCountBeforeWord);
+
+      for (const phrase of SPOKEN_FILLERS) {
+        const matches = phrase.every((part, offset) => normalizedWord(words[i + offset]?.text ?? '') === part);
+        if (matches) fillerBoundaries.push(leftCountBeforeWord);
+      }
+    }
+
+    const splitWordCount = bestBoundary(
+      commaBoundaries.length
+        ? commaBoundaries
+        : conjunctionBoundaries.length
+          ? conjunctionBoundaries
+          : fillerBoundaries,
+      Math.min(HARD_SPLIT_WORDS, words.length - 1)
+    );
+    const nextWord = words[splitWordCount];
+    if (!nextWord) {
+      const line = lineFromSpan(text, times, cursor, endIndex);
+      if (line.text) result.push(line);
+      break;
+    }
+
+    const splitIndex = firstNonSpaceAtOrAfter(text, nextWord.start, endIndex);
+    const line = lineFromSpan(text, times, cursor, splitIndex - 1);
+    if (line.text) result.push(line);
+    cursor = splitIndex;
+  }
+
+  return result;
+}
+
 function splitIntoSentenceUnits(fragments: TranscriptLine[]): TranscriptLine[] {
   if (fragments.length === 0) return [];
   if (!fragments.some((fragment) => countSentenceEndings(fragment.text) > 0)) {
@@ -174,7 +268,13 @@ function splitIntoSentenceUnits(fragments: TranscriptLine[]): TranscriptLine[] {
     if (end == null) continue;
 
     const sentence = lineFromSpan(text, times, startIndex, end);
-    if (sentence.text) sentences.push(sentence);
+    if (sentence.text) {
+      if (wordCount(sentence.text) > MAX_WORDS_PER_CHUNK) {
+        sentences.push(...splitLongSentenceSpan(text, times, startIndex, end));
+      } else {
+        sentences.push(sentence);
+      }
+    }
 
     const rest = text.slice(end + 1);
     const next = rest.search(/\S/);
@@ -185,7 +285,13 @@ function splitIntoSentenceUnits(fragments: TranscriptLine[]): TranscriptLine[] {
 
   if (startIndex < text.length) {
     const trailing = lineFromSpan(text, times, startIndex, text.length - 1);
-    if (trailing.text) sentences.push(trailing);
+    if (trailing.text) {
+      if (wordCount(trailing.text) > MAX_WORDS_PER_CHUNK) {
+        sentences.push(...splitLongSentenceSpan(text, times, startIndex, text.length - 1));
+      } else {
+        sentences.push(trailing);
+      }
+    }
   }
 
   return sentences;
@@ -209,8 +315,15 @@ export function packTranscriptLines(segments: TranscriptLine[]): TranscriptLine[
     const sentenceWords = wordCount(text);
 
     if (sentenceWords >= MIN_WORDS_PER_CHUNK) {
-      flush();
-      chunks.push(sentence);
+      const candidate = [...buf, sentence];
+      const candidateWords = wordCount(candidate.map((line) => line.text).join(' '));
+      if (buf.length && candidate.length <= MAX_SENTENCES_PER_CHUNK && candidateWords <= MAX_WORDS_PER_CHUNK) {
+        buf = candidate;
+        flush();
+      } else {
+        flush();
+        chunks.push(sentence);
+      }
       continue;
     }
 
@@ -262,9 +375,63 @@ export function splitTranscriptLocally(fragments: TranscriptLine[]): TranscriptL
   return packTranscriptLines(fragments);
 }
 
+function shouldAiResegment(chunk: TranscriptLine): boolean {
+  return wordCount(chunk.text) > AI_FALLBACK_WORD_CEILING && countSentenceEndings(chunk.text) <= 1;
+}
+
+function remapAiWordOffsets(chunk: TranscriptLine, offsets: number[]): TranscriptLine[] | null {
+  if (offsets[0] !== 0) return null;
+  if (offsets.some((offset, index) => offset < 0 || (index > 0 && offset <= offsets[index - 1]))) return null;
+
+  const { text, times } = buildTimedText([chunk]);
+  const words = wordSpans(text, 0, text.length - 1);
+  if (offsets.some((offset) => offset >= words.length)) return null;
+
+  const lines: TranscriptLine[] = [];
+  for (let i = 0; i < offsets.length; i++) {
+    const startWord = words[offsets[i]];
+    const nextStartWord = words[offsets[i + 1]];
+    const startIndex = startWord.start;
+    const endIndex = nextStartWord ? nextStartWord.start - 1 : text.length - 1;
+    const line = lineFromSpan(text, times, startIndex, endIndex);
+    if (!line.text) return null;
+    lines.push(line);
+  }
+
+  return lines;
+}
+
+export async function applyAiFallback(chunks: TranscriptLine[]): Promise<TranscriptLine[]> {
+  const result: TranscriptLine[] = [];
+
+  for (const chunk of chunks) {
+    if (!shouldAiResegment(chunk)) {
+      result.push(chunk);
+      continue;
+    }
+
+    try {
+      const response = await aiService.resegmentChunk(chunk.text, {
+        targetMinWords: 20,
+        targetMaxWords: 45,
+      });
+      const offsets = response.splits.map((split) => split.wordOffset);
+      const remapped = remapAiWordOffsets(chunk, offsets);
+      if (!remapped) throw new Error('Invalid AI resegment word offsets');
+      result.push(...remapped);
+    } catch (error) {
+      console.warn('AI transcript resegment failed; preserving local chunk', error);
+      result.push(chunk);
+    }
+  }
+
+  return result;
+}
+
 export async function fetchTranscript(videoId: string): Promise<TranscriptData> {
   const data = await fetchRawTranscript(videoId);
-  return { lines: splitTranscriptLocally(data.lines), videoId };
+  const localLines = splitTranscriptLocally(data.lines);
+  return { lines: await applyAiFallback(localLines), videoId };
 }
 
 // Format seconds to mm:ss or h:mm:ss

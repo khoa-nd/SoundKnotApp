@@ -1,5 +1,4 @@
 import { Config } from '../constants/Config';
-import type { AIQuery } from '../types';
 
 interface AIRequest {
   query: string;
@@ -12,6 +11,10 @@ interface AIResponse {
   answer: string;
   relatedTopics?: string[];
   suggestedContent?: string[];
+}
+
+interface ResegmentResponse {
+  splits: { text: string; wordOffset: number }[];
 }
 
 export const aiService = {
@@ -45,6 +48,23 @@ export const aiService = {
 
     const data = await response.json();
     return data.explanation;
+  },
+
+  async resegmentChunk(
+    text: string,
+    opts: { targetMinWords: number; targetMaxWords: number }
+  ): Promise<ResegmentResponse> {
+    const response = await fetch(Config.aiEndpoint + '/v1/resegment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, ...opts }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Resegment request failed: ${response.status}`);
+    }
+
+    return response.json();
   },
 
   buildQueryContext(
