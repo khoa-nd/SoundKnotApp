@@ -24,11 +24,16 @@
     font-family: -apple-system, "Inter", system-ui, sans-serif;
     background: var(--paper);
     color: var(--ink);
-    max-width: 960px;
-    margin: 0 auto;
-    padding: 40px 20px 80px;
+    margin: 0;
+    padding: 40px 32px 80px;
     line-height: 1.6;
+    display: grid;
+    grid-template-columns: 240px minmax(0, 960px);
+    gap: 40px;
+    justify-content: center;
+    align-items: start;
   }
+  main { min-width: 0; }
   h1 { font-size: 32px; letter-spacing: -0.02em; margin: 0 0 4px; }
   h2 {
     font-size: 22px;
@@ -119,12 +124,29 @@
   }
   .toc {
     background: var(--paper2);
-    padding: 18px 22px;
+    padding: 18px 20px;
     border-radius: 10px;
-    margin: 24px 0 32px;
+    position: sticky;
+    top: 40px;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    font-size: 13px;
+    line-height: 1.45;
   }
-  .toc ol { margin: 4px 0; padding-left: 22px; }
-  .toc a { color: var(--ink2); text-decoration: none; }
+  .toc strong {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink3);
+    margin-bottom: 10px;
+  }
+  .toc ol { margin: 4px 0; padding-left: 18px; }
+  .toc > ol { padding-left: 0; list-style: none; }
+  .toc > ol > li { margin: 8px 0; }
+  .toc > ol > li > a { font-weight: 600; color: var(--ink); }
+  .toc li { margin: 2px 0; }
+  .toc a { color: var(--ink2); text-decoration: none; display: block; padding: 2px 0; }
   .toc a:hover { color: var(--accent); }
   a { color: var(--accentInk); }
   .ascii {
@@ -142,16 +164,13 @@
 </head>
 <body>
 
-<div class="doc-meta">SoundKnot · Technical Documentation</div>
-<h1>SoundKnot</h1>
-<p class="subtitle">Combined technical reference — Backend (Cloudflare Worker API + Supabase) and Frontend (Expo React Native app).</p>
-
-<div class="toc">
+<aside class="toc">
   <strong>Contents</strong>
   <ol>
     <li><a href="#part-1">Part 1 — Backend / API</a>
       <ol>
         <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#authentication">Authentication</a></li>
         <li><a href="#repositories">Repositories</a></li>
         <li><a href="#db-schema">Database Schema (Supabase)</a></li>
         <li><a href="#api">API (Cloudflare Worker)</a></li>
@@ -186,8 +205,15 @@
       </ol>
     </li>
     <li><a href="#deployment">Part 5 — Deployment</a></li>
+    <li><a href="#appendix-a">Appendix A — How Supabase Auth works</a></li>
   </ol>
-</div>
+</aside>
+
+<main>
+
+<div class="doc-meta">SoundKnot · Technical Documentation</div>
+<h1>SoundKnot</h1>
+<p class="subtitle">Combined technical reference — Backend (Cloudflare Worker API + Supabase) and Frontend (Expo React Native app).</p>
 
 <div class="part-banner" id="part-1">Part 1 · Backend / API</div>
 
@@ -207,6 +233,78 @@
   <li>Supabase Auth handles email/password authentication</li>
   <li>The CF Worker validates JWTs via <code>supabase.auth.getUser(token)</code></li>
   <li>AsyncStorage on the app persists JWT for session restoration on launch</li>
+</ul>
+
+<h2 id="authentication">Authentication</h2>
+<p>End-to-end, who issues the token, who carries it, who validates it, and how the app keeps it attached across reloads. Details for each piece are linked inline.</p>
+
+<h3>Identity provider — Supabase Auth</h3>
+<ul>
+  <li><strong>Email + password only.</strong> No social login, no email verification (registration uses <code>supabase.auth.admin.createUser({ email_confirm: true })</code> server-side, so the user is usable immediately).</li>
+  <li>Supabase issues a standard pair on login or registration: a short-lived <strong>access token</strong> (JWT, ~1 hour TTL) and a <strong>refresh token</strong>.</li>
+  <li>The app and the CF Worker both treat Supabase as the source of truth for identity — neither stores password hashes itself. User records live in Supabase's <code>auth.users</code> table; application-level rows in <code>profiles</code> / <code>user_progress</code> are auto-created via DB trigger (<code>on_auth_user_created</code>).</li>
+</ul>
+
+<h3>Token lifecycle — end to end</h3>
+<div class="ascii">App (Expo)                      CF Worker (Hono)             Supabase
+─────────────                  ───────────────              ────────
+1. POST /auth/login    ────►   /auth/login          ────►   signInWithPassword
+                                                   ◄────   { session, user }
+                       ◄────   { session, user }
+
+2. authStore.login()
+   ├─ persists session to AsyncStorage (soundknot_session)
+   └─ subscriber → apiClient.setToken(access_token)
+
+3. videoService.list() ────►   GET /videos
+   Authorization:               Bearer &lt;access_token&gt;
+   Bearer &lt;access_token&gt;        │
+                                ├─ authMiddleware
+                                │    └─ supabase.auth.getUser(token) ──►  validate
+                                │                                 ◄──── { user } or 401
+                                └─ route handler with c.get("userId")
+                       ◄────   200 { videos }
+
+4. App relaunch (cold or Fast Refresh)
+   app/_layout.tsx → authStore.restoreSession()
+     ├─ reads AsyncStorage
+     ├─ subscriber → apiClient.setToken(...)
+     └─ probes GET /auth/me; clears storage on 401</div>
+
+<h3>App side — where the token lives</h3>
+<ul>
+  <li><strong>Persistent storage:</strong> AsyncStorage under <code>soundknot_session</code> (the full session object: access_token + refresh_token + expires_at) and <code>soundknot_user</code> (the cached user record).</li>
+  <li><strong>In-memory store:</strong> <code>useAuthStore</code> (Zustand) — owns the session object and the <code>isAuthenticated</code> flag. See <a href="#state-management">§7.1 authStore</a>.</li>
+  <li><strong>HTTP client:</strong> <code>apiClient</code> singleton in <code>src/services/api.ts</code> — holds the bearer token in memory and attaches it as <code>Authorization: Bearer &lt;token&gt;</code> to every request.</li>
+  <li><strong>Sync between them:</strong> the store registers a module-level <code>useAuthStore.subscribe(...)</code> that mirrors <code>session?.access_token</code> into <code>apiClient.setToken/clearToken</code> on every change. The store is the single source of truth; the singleton can't drift.</li>
+  <li><strong>Boot-time restore:</strong> <code>app/_layout.tsx</code> calls <code>authStore.restoreSession()</code> once on mount and gates the entire route stack on the result — so the token is always re-attached before any child screen makes a request, including after Fast Refresh or an OS-evicted JS VM. See <a href="#state-management">§7.2 Auth + State Lifecycle</a>.</li>
+</ul>
+
+<h3>Backend side — how requests are validated</h3>
+<ul>
+  <li>Every route group except <code>/auth/register</code> and <code>/auth/login</code> is wrapped by <code>authMiddleware</code> (<code>api/src/middleware/auth.ts</code>).</li>
+  <li>The middleware extracts <code>Bearer &lt;token&gt;</code>, calls <code>supabase.auth.getUser(token)</code> to validate against Supabase, and on success sets <code>c.set("userId", user.id)</code> for handlers to use. Missing/malformed header → <code>401 "Missing or invalid Authorization header"</code>. Invalid/expired token → <code>401 "Invalid or expired token"</code>.</li>
+  <li>Once <code>userId</code> is on the context, every handler scopes its queries by it (e.g. <code>.eq("user_id", userId)</code>) so cross-user access is impossible at the application layer.</li>
+  <li>The CF Worker talks to Supabase using the <strong>service role key</strong> (<code>SUPABASE_SERVICE_ROLE_KEY</code>) which bypasses RLS. The middleware is therefore the <strong>only</strong> enforcement point at the API layer. RLS policies remain enabled at the DB as defense-in-depth, but the runtime path never relies on them.</li>
+  <li>Endpoint-level details: see <a href="#api">§API · Auth Middleware</a> and the per-route <code>Auth</code> column in the endpoint tables.</li>
+</ul>
+
+<h3>Authentication endpoints</h3>
+<table>
+  <thead><tr><th>Endpoint</th><th>Auth</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>POST /auth/register</code></td><td>No</td><td>Creates the Supabase user with <code>email_confirm: true</code>, then auto-signs in. Returns <code>{ session, user }</code>.</td></tr>
+    <tr><td><code>POST /auth/login</code></td><td>No</td><td><code>signInWithPassword</code>. Returns <code>{ session, user }</code>.</td></tr>
+    <tr><td><code>POST /auth/logout</code></td><td>Yes</td><td>Server-side sign-out. App also clears local AsyncStorage + apiClient token via the store subscriber.</td></tr>
+    <tr><td><code>GET /auth/me</code></td><td>Yes</td><td>Returns the user's <code>{ profile, progress }</code>. Used by <code>restoreSession()</code> to probe token validity at app boot.</td></tr>
+  </tbody>
+</table>
+
+<h3>Failure modes &amp; current gaps</h3>
+<ul>
+  <li><strong>Token expiry mid-session:</strong> Supabase access tokens last ~1 hour. The app does <strong>not</strong> currently exchange the refresh token when a request returns 401 — the user has to sign out and back in. The Home tab's <code>.catch(() =&gt; ({ videos: [] }))</code> swallows this 401 and renders an empty list with no warning. Tracked as a follow-up.</li>
+  <li><strong>404 on DELETE</strong> is treated as "already removed" client-side — a routing/deployment drift between client and server can silently masquerade as a successful delete. Acceptable for now since the route is deployed.</li>
+  <li><strong>No multi-device session invalidation:</strong> logging out on device A does not invalidate the token on device B. Standard Supabase behavior; out of scope.</li>
 </ul>
 
 <h2 id="repositories">Repositories</h2>
@@ -1730,8 +1828,140 @@ wrangler deploy</code></pre>
 npm install
 expo start</code></pre>
 
+<div class="part-banner" id="appendix-a">Appendix A · How Supabase Auth works</div>
+
+<p>SoundKnot's entire identity story sits on top of Supabase Auth. This appendix is a concept primer — what Supabase Auth actually <em>is</em>, what each piece does, and where each piece lands in our codebase. If you've never used Supabase before, read this first; the per-file detail is linked back to the rest of the doc.</p>
+
+<h2 id="supabase-overview">A.1 What is Supabase?</h2>
+<p>Supabase is an open-source backend-as-a-service that bundles four things behind a single dashboard and a single project URL:</p>
+<table>
+  <thead><tr><th>Component</th><th>What it is</th><th>Used by SoundKnot?</th></tr></thead>
+  <tbody>
+    <tr><td><strong>PostgreSQL</strong></td><td>A full Postgres database, accessible over the wire</td><td>Yes — all our tables live here</td></tr>
+    <tr><td><strong>Auth (GoTrue)</strong></td><td>A user-management service: signup, login, JWTs, refresh tokens, password reset, social providers</td><td>Yes — email + password only</td></tr>
+    <tr><td><strong>Storage</strong></td><td>S3-style file storage</td><td>No</td></tr>
+    <tr><td><strong>Realtime / Edge Functions</strong></td><td>WebSocket subscriptions + serverless functions</td><td>No (we use Cloudflare Workers instead)</td></tr>
+  </tbody>
+</table>
+<p>Each Supabase project gets its own URL like <code>https://&lt;project-ref&gt;.supabase.co</code>. Everything below — Auth API, Postgres, REST shortcuts — lives under that URL.</p>
+
+<h2 id="supabase-auth-service">A.2 The Auth service (GoTrue)</h2>
+<p>The "Auth" piece is a separate service called <strong>GoTrue</strong> that Supabase runs for you. It exposes HTTP endpoints like <code>/auth/v1/signup</code>, <code>/auth/v1/token</code>, <code>/auth/v1/user</code>, and it owns its own table in your database called <code>auth.users</code>. You never touch <code>auth.users</code> directly — GoTrue is the only thing that writes to it.</p>
+
+<p>Three things to remember about GoTrue:</p>
+<ol>
+  <li>It stores users in <code>auth.users</code> (id, email, encrypted password, metadata, timestamps). Your application tables live in the <code>public</code> schema and reference <code>auth.users(id)</code> via foreign keys.</li>
+  <li>It issues <strong>JWTs signed with a project-wide secret</strong> (the <code>JWT_SECRET</code>) — anyone who knows that secret can verify a token without a network call.</li>
+  <li>It handles password hashing (bcrypt), email verification flows, magic links, OAuth, MFA — none of which you have to implement.</li>
+</ol>
+
+<h2 id="supabase-keys">A.3 The two keys you'll see — anon vs service role</h2>
+<p>Every Supabase project ships with two API keys. Knowing the difference is essential because they grant very different power.</p>
+<table>
+  <thead><tr><th>Key</th><th>Role claim</th><th>What it can do</th><th>Where it's safe to use</th></tr></thead>
+  <tbody>
+    <tr><td><code>anon</code> public key</td><td><code>"anon"</code></td><td>Whatever your Row Level Security policies allow for an anonymous user. <strong>Subject to RLS.</strong></td><td>Front-end clients (mobile apps, browser code)</td></tr>
+    <tr><td><code>service_role</code> secret key</td><td><code>"service_role"</code></td><td>Full read/write on every table. <strong>Bypasses RLS.</strong> Can call admin APIs (create users, delete users, etc.).</td><td>Server-side only. Never ship to a client.</td></tr>
+  </tbody>
+</table>
+<p><strong>SoundKnot uses only the service role key</strong> — and only inside the Cloudflare Worker (<code>SUPABASE_SERVICE_ROLE_KEY</code> wrangler secret). The app never sees it. The app never talks to Supabase directly at all — it goes through our CF Worker, which holds the privileged key.</p>
+<p>This is the simpler of the two common patterns. The alternative — letting the mobile app call Supabase directly with the anon key + RLS — is what most Supabase docs show. We chose the Worker-as-proxy pattern instead so we have one server-side place to add rate limits, custom logic (YouTube oEmbed lookup, AI calls), and observability without exposing any provider keys to the client.</p>
+
+<h2 id="supabase-tokens">A.4 The JWT pair — access token and refresh token</h2>
+<p>On successful login or registration, GoTrue returns a <strong>session object</strong> that contains:</p>
+<pre><code>{
+  "access_token":  "&lt;JWT&gt;",       // short-lived, ~1 hour
+  "refresh_token": "&lt;opaque&gt;",     // long-lived, swappable
+  "expires_at":    1748102400,     // unix seconds
+  "token_type":    "bearer",
+  "user":          { ... }
+}</code></pre>
+
+<h3>The access token</h3>
+<ul>
+  <li>A signed JWT with three parts: header, payload, signature.</li>
+  <li>Payload includes <code>sub</code> (= the user's UUID), <code>email</code>, <code>role</code> (<code>"authenticated"</code> for normal users), <code>exp</code>, <code>iat</code>.</li>
+  <li>Signed with the project's <code>JWT_SECRET</code>. Any server that knows the secret can validate the token offline (no Supabase round-trip needed).</li>
+  <li><strong>~1 hour lifetime.</strong> After that, all requests carrying it will be rejected.</li>
+</ul>
+
+<h3>The refresh token</h3>
+<ul>
+  <li>An opaque random string (<em>not</em> a JWT).</li>
+  <li>You exchange it at <code>POST /auth/v1/token?grant_type=refresh_token</code> for a brand-new access token (and usually a new refresh token).</li>
+  <li>Long-lived. Stored on the client and persisted across app restarts.</li>
+  <li>Refresh tokens themselves get invalidated on explicit sign-out or on password change.</li>
+</ul>
+
+<h3>How the two work together (in any Supabase app)</h3>
+<div class="ascii">Client                                      GoTrue
+──────                                      ──────
+login(email, pwd)                  ────►    issues  access + refresh
+                                   ◄────    { access, refresh, expires_at }
+
+(every API call)
+  Authorization: Bearer &lt;access&gt;   ────►    your server validates JWT
+
+(access expires after ~1h)
+  refresh_token=&lt;refresh&gt;          ────►    issues new access (+ new refresh)
+                                   ◄────    { access', refresh', expires_at' }</div>
+<p><strong>SoundKnot today implements only the first two steps.</strong> The third — automatic refresh when an access token expires — is not yet wired up. That's why an open app left running for &gt;1 hour starts to 401; the user has to sign out and back in. See the "Failure modes" subsection of <a href="#authentication">§Authentication</a>.</p>
+
+<h2 id="supabase-rls">A.5 Row Level Security (RLS)</h2>
+<p>RLS is a Postgres feature, not a Supabase invention — but Supabase makes it central because it lets you safely expose your database to untrusted clients (the anon-key pattern). With RLS enabled on a table, every query is filtered by SQL policies you define. Example from <code>specs/migration.sql</code>:</p>
+<pre><code>CREATE POLICY "Users can view own videos"
+  ON public.user_videos FOR SELECT
+  USING (auth.uid() = user_id);</code></pre>
+<p><code>auth.uid()</code> is a Supabase helper that pulls the <code>sub</code> claim out of the JWT carried on the request. The policy above means: a SELECT from <code>user_videos</code> using the anon key will only see rows where <code>user_id</code> matches the caller's UUID. No way for one user to read another's videos, no application code required.</p>
+<p><strong>In SoundKnot:</strong> RLS is enabled on every table and we have per-user policies — but because the Worker uses the service role key, those policies are <strong>bypassed at runtime</strong>. We rely on the Worker's <code>authMiddleware</code> (which sets <code>userId</code> on the request context) and <code>.eq("user_id", userId)</code> filters in every query to enforce isolation. The RLS policies stay in place as defense-in-depth in case someone ever introduces a direct-client path or the service role key leaks.</p>
+
+<h2 id="supabase-triggers">A.6 Database triggers — auto-creating application rows</h2>
+<p>Because Supabase Auth owns <code>auth.users</code>, you typically want a row in your own <code>profiles</code> table to appear automatically whenever a user signs up. Standard pattern: a Postgres trigger that fires on <code>INSERT INTO auth.users</code>.</p>
+<p>SoundKnot uses exactly this pattern (see <a href="#db-schema">§DB Schema · Triggers</a>):</p>
+<pre><code>CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();</code></pre>
+<p>The trigger inserts one row into <code>profiles</code> (display name from signup metadata or email prefix) and one row into <code>user_progress</code> (zeros for all stats). Without it, every signup path would need to remember to bootstrap those rows by hand.</p>
+
+<h2 id="supabase-validation">A.7 How a server validates a JWT — two options</h2>
+<p>When your backend receives <code>Authorization: Bearer &lt;jwt&gt;</code>, it can verify the token two ways:</p>
+<table>
+  <thead><tr><th>Method</th><th>Network call?</th><th>Used in SoundKnot</th></tr></thead>
+  <tbody>
+    <tr><td><code>supabase.auth.getUser(token)</code></td><td>Yes — Supabase round-trip</td><td><strong>Yes</strong> (current implementation)</td></tr>
+    <tr><td>Verify JWT signature locally with <code>JWT_SECRET</code></td><td>No</td><td>Not used</td></tr>
+  </tbody>
+</table>
+<p>The local-verify path is faster (no network hop) and stateless, but the server-call path is safer against token-revocation edge cases (e.g. user signs out on another device — local verify wouldn't notice until the token expires). SoundKnot chose <code>getUser()</code> for simplicity and correctness; latency is fine for our traffic shape.</p>
+
+<h2 id="supabase-mapping">A.8 Putting it together — where each Supabase concept lives in our code</h2>
+<table>
+  <thead><tr><th>Supabase concept</th><th>Where in SoundKnot</th></tr></thead>
+  <tbody>
+    <tr><td>Auth provider</td><td>Supabase project, email + password only, no email verification (<code>email_confirm: true</code> on registration)</td></tr>
+    <tr><td>JWT secret</td><td><code>SUPABASE_JWT_SECRET</code> — wrangler secret, used implicitly by <code>supabase.auth.getUser</code></td></tr>
+    <tr><td>Service role key</td><td><code>SUPABASE_SERVICE_ROLE_KEY</code> — wrangler secret, attached to every Worker query via <code>createSupabaseAdmin()</code></td></tr>
+    <tr><td>Anon key</td><td>Not used — the app does not talk to Supabase directly</td></tr>
+    <tr><td>Session (access + refresh)</td><td>Persisted to AsyncStorage under <code>soundknot_session</code> by <code>authStore</code></td></tr>
+    <tr><td>JWT validation</td><td><code>api/src/middleware/auth.ts</code> via <code>supabase.auth.getUser(token)</code></td></tr>
+    <tr><td>RLS policies</td><td><code>api/specs/migration.sql</code> — declared, but bypassed at runtime because the Worker uses the service role key. Application-layer isolation is the live enforcement.</td></tr>
+    <tr><td>Signup trigger</td><td><code>on_auth_user_created</code> in <code>migration.sql</code> — creates the <code>profiles</code> and <code>user_progress</code> rows automatically</td></tr>
+    <tr><td>Refresh token exchange</td><td><strong>Not implemented.</strong> Tokens are not refreshed; the user re-signs in after expiry. Tracked follow-up.</td></tr>
+  </tbody>
+</table>
+
+<h2 id="supabase-further">A.9 Further reading</h2>
+<ul>
+  <li><a href="https://supabase.com/docs/guides/auth">Supabase Auth docs</a> — official reference, covers OAuth, MFA, magic links</li>
+  <li><a href="https://github.com/supabase/auth">GoTrue source</a> — the actual auth service Supabase runs</li>
+  <li><a href="https://supabase.com/docs/guides/database/postgres/row-level-security">Row Level Security guide</a> — when to use the anon-key + RLS pattern instead of a server proxy like ours</li>
+  <li><a href="https://supabase.com/docs/guides/api/api-keys">API keys explained</a> — anon vs service_role, in depth</li>
+</ul>
+
 <hr />
 <p><small><em>Last updated: 2026-05-22 · Sound Knot V2 · Expo SDK 54 · iOS / Android / Web</em></small></p>
+
+</main>
 
 </body>
 </html>
