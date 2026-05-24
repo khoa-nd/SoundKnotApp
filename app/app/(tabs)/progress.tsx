@@ -1,9 +1,10 @@
 // ── Sound Knot V2 — Progress Screen
 // Streak stats + 12-week heatmap + listening indicators + per-segment mastery
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../src/constants/theme';
 import { Typography } from '../../src/constants/Typography';
 import { Spacing, Radius } from '../../src/constants/Spacing';
@@ -11,6 +12,7 @@ import { Knot } from '../../src/components/ui/Knot';
 import { ProgressBar } from '../../src/components/ui/ProgressBar';
 import { authService } from '../../src/services/auth';
 import { homeService } from '../../src/services/home';
+import { useAuthStore } from '../../src/stores/authStore';
 import type { UserProgress, PracticeSession } from '../../src/types';
 
 export default function ProgressScreen() {
@@ -18,6 +20,32 @@ export default function ProgressScreen() {
   const [progress, setProgress] = useState<UserProgress | null>(null);
   const [recentKnots, setRecentKnots] = useState<PracticeSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+
+  const handleSignOut = useCallback(() => {
+    Alert.alert(
+      'Sign out?',
+      'You will need to sign in again to access your videos and progress.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Sign out',
+          style: 'destructive',
+          onPress: async () => {
+            setSigningOut(true);
+            try {
+              await logout();
+              router.replace('/login');
+            } finally {
+              setSigningOut(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [logout]);
 
   useFocusEffect(
     useCallback(() => {
@@ -115,6 +143,37 @@ export default function ProgressScreen() {
           </View>
         )}
 
+        <View style={styles.accountSection}>
+          <Text style={[Typography.marker, { color: colors.ink4, marginBottom: Spacing.lg }]}>
+            Account
+          </Text>
+          {user?.email && (
+            <Text
+              style={[Typography.bodySmall, { color: colors.ink3, marginBottom: Spacing.lg }]}
+              numberOfLines={1}
+            >
+              {user.email}
+            </Text>
+          )}
+          <TouchableOpacity
+            style={[styles.signOutBtn, { borderColor: colors.hair }]}
+            onPress={handleSignOut}
+            disabled={signingOut}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Sign out"
+          >
+            {signingOut ? (
+              <ActivityIndicator size="small" color={colors.ink} />
+            ) : (
+              <>
+                <Ionicons name="log-out-outline" size={18} color={colors.ink} />
+                <Text style={[Typography.button, { color: colors.ink }]}>Sign out</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -199,5 +258,15 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     paddingVertical: Spacing.lg,
     borderTopWidth: 1,
+  },
+  accountSection: { marginTop: Spacing.massive },
+  signOutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: Radius.pill,
   },
 });

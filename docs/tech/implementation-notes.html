@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-23 (Transcript split stabilization plan).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-24 (Session restoration on app boot + Sign out + Home delete-route deploy fix).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -75,6 +75,7 @@
   <li><span class="badge done">8 ✓</span> Bookmark per transcript line + Library Phrase/Vocabulary tabs</li>
   <li><span class="badge done">9 ✓</span> AI Tutor generated vocabulary/phrases + Library card UX + Home copy/delete actions</li>
   <li><span class="badge pending">10 …</span> Transcript split stabilization — hybrid local soft-boundary + AI fallback</li>
+  <li><span class="badge done">11 ✓</span> Session restoration on app boot + Sign out button + Home delete-route deploy fix</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -414,6 +415,50 @@ Content-Type: application/json
 }
 → non-2xx { "error": "..." }</pre>
 <p><code>wordOffset</code> is the zero-based word index in the original <code>text</code> where each sub-chunk starts. The first sub-chunk must have <code>wordOffset: 0</code>. Sub-chunks should each fall in the target word range; the client is responsible for tolerating mild violations.</p>
+
+<h2>Item 11 — Session restoration + Sign out + Home delete deploy fix</h2>
+<p><em>Problem:</em> two adjacent bugs surfaced while debugging "delete video" on Home.</p>
+<ol>
+  <li><strong>Delete returned 404 in production.</strong> The local Worker code had <code>DELETE /videos/:id</code> but the deployed Worker at <code>soundknot-api.ndkhoa-is.workers.dev</code> did not. The client's "treat 404 as already removed" branch swallowed the failure silently — the row vanished optimistically and reappeared on next Home focus.</li>
+  <li><strong>Home occasionally rendered an empty video list.</strong> Reproduced after Metro Fast Refresh / Reload while sitting on Home. Logs showed <code>GET /videos → "Missing or invalid Authorization header"</code> immediately after a successful DELETE. The bearer token had vanished from the <code>apiClient</code> singleton mid-session.</li>
+</ol>
+
+<h3>Root cause — singleton token desync</h3>
+<div class="decision">
+  <code>apiClient</code> in <code>src/services/api.ts</code> holds the bearer token in a private field that lives in JS memory only. The token was set in exactly four call sites (login / register / logout / <code>restoreSession</code>) inside <code>authStore</code>. <code>restoreSession</code> only ran inside <code>app/index.tsx</code>'s <code>useEffect</code> — and <code>index.tsx</code> only mounts when the user lands on the <code>/</code> route. Any code path that bypassed <code>/</code> (Fast Refresh while on <code>/(tabs)/home</code>, an OS-evicted JS VM rehydrating directly into a deep route) left <code>apiClient.token = null</code> while AsyncStorage still held a valid session. Every protected request then 401'd with the auth-middleware message.
+</div>
+
+<h3>Fixes shipped</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>app/_layout.tsx</code></td><td>Calls <code>useAuthStore.restoreSession()</code> in a <code>useEffect</code> at app boot and gates the entire stack render on <code>authChecked</code>. No child route can mount before the persisted token is re-attached to <code>apiClient</code>.</td></tr>
+  <tr><td><code>src/stores/authStore.ts</code></td><td>Added a module-level <code>useAuthStore.subscribe(...)</code> that mirrors <code>session?.access_token</code> into <code>apiClient.setToken/clearToken</code> on every change. The store is now the single source of truth; the singleton can't drift again even if a future code path forgets to call <code>setToken</code>.</td></tr>
+  <tr><td><code>app/index.tsx</code></td><td>Stripped to a single <code>&lt;Redirect&gt;</code>. Auth restoration now belongs to the root layout, so this route doesn't repeat the work or duplicate the splash UI.</td></tr>
+  <tr><td><code>app/(tabs)/progress.tsx</code></td><td>Added an <strong>Account</strong> section at the bottom of the Profile tab showing the user's email and a destructive-confirmed <strong>Sign out</strong> pill button. Calls <code>useAuthStore.logout()</code> then <code>router.replace('/login')</code>.</td></tr>
+  <tr><td>Deployed Worker</td><td>Ran <code>npx wrangler deploy</code> from the <code>api/</code> repo so the <code>DELETE /videos/:id</code> handler is live. The route itself was unchanged.</td></tr>
+</table>
+
+<h3>Tradeoffs / known limits</h3>
+<div class="tradeoff">
+  <strong>No token refresh.</strong> Supabase access tokens expire after ~1 hour. The fix above guarantees the saved token is always attached, but it does not refresh an expired token mid-session. Long-running app sessions can still 401 once the token expires. The proper follow-up is to detect <code>response.status === 401</code> in <code>api.ts</code>, attempt one <code>refresh_token</code> exchange via the existing Supabase session, retry the request once, and only then bubble the error.
+</div>
+<div class="tradeoff">
+  <strong>Home still hides backend errors as an empty list.</strong> <code>useFocusEffect</code> in <code>home.tsx</code> swallows both <code>homeService.fetch</code> and <code>videoService.list</code> failures with <code>.catch(() =&gt; null / { videos: [] })</code>. A 401/5xx looks identical to "you have 0 videos". Worth a small follow-up: render an explicit "Could not load — tap to retry" state instead.
+</div>
+<div class="tradeoff">
+  <strong>Delete-error swallowing on 404 stays in place.</strong> The Worker is now deployed so this branch should not fire in practice, but if the API ever drifts again the user will see no warning. Acceptable for now; revisit if we add more destructive actions.
+</div>
+
+<h3>How to verify</h3>
+<ol>
+  <li>Cold start → Home loads videos.</li>
+  <li>Press <code>r</code> in Metro to reload while on Home → videos still load (this was broken before).</li>
+  <li>Trigger Fast Refresh by editing any file → videos still load after the reload.</li>
+  <li>Profile tab → bottom → tap <strong>Sign out</strong> → confirm → land on <code>/login</code>.</li>
+  <li>Sign in again → Home loads videos (regression check on the new subscriber).</li>
+  <li>Tap delete on any video row → row disappears and stays gone after navigating away and back.</li>
+  <li><code>npx tsc --noEmit</code> clean.</li>
+</ol>
 
 <h2>Anything else worth knowing</h2>
 <ul>

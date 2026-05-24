@@ -109,3 +109,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   clearError: () => set({ error: null }),
 }));
+
+useAuthStore.subscribe((state, prev) => {
+  const token = state.session?.access_token ?? null;
+  const prevToken = prev.session?.access_token ?? null;
+  if (token === prevToken) return;
+  if (token) apiClient.setToken(token);
+  else apiClient.clearToken();
+});

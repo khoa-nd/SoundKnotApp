@@ -670,7 +670,7 @@ interface YoutubePlayerViewProps {
 
 <h3>6.1 Route Map</h3>
 <pre><code>Root Stack (app/_layout.tsx)
-├── /                          → index.tsx (auth gate → login or tabs)
+├── /                          → index.tsx (redirect — auth restoration runs in _layout.tsx)
 ├── /login                     → login.tsx (login + register)
 ├── /(tabs)                    → Tab Navigator
 │   ├── /home                  → home.tsx
@@ -683,9 +683,9 @@ interface YoutubePlayerViewProps {
 └── /ai-settings               → ai-settings.tsx (slide_from_right)</code></pre>
 
 <h3>6.2 User Flow</h3>
-<pre><code>Splash (font loading)
+<pre><code>Splash (font loading + authStore.restoreSession)
   ↓
-Index (auth check via authStore.restoreSession)
+Index (reads isAuthenticated, redirects)
   ├── unauthenticated → /login
   └── authenticated   → /(tabs)/home
       ↓
@@ -752,8 +752,9 @@ Finished Screen
 }</code></pre>
 <ul>
   <li>Persists session + user to <strong>AsyncStorage</strong> under <code>soundknot_session</code> and <code>soundknot_user</code></li>
-  <li>On <code>restoreSession()</code>: loads from storage, checks <code>expires_at</code>, calls <code>apiClient.setToken()</code>, validates with <code>/auth/me</code>, clears storage on failure</li>
+  <li>On <code>restoreSession()</code>: loads from storage, checks <code>expires_at</code>, calls <code>apiClient.setToken()</code>, validates with <code>/auth/me</code>, clears storage on failure. Invoked from <code>app/_layout.tsx</code> at app boot so the bearer token is attached before any child route can mount.</li>
   <li>Throws on login/register failure so callers can react; error message also stored in state</li>
+  <li><strong>apiClient subscriber:</strong> at module load the store registers <code>useAuthStore.subscribe(...)</code> that mirrors <code>session?.access_token</code> into <code>apiClient.setToken/clearToken</code> on every change. The store is the single source of truth for the bearer token; the singleton can't drift even if a future code path forgets to call <code>setToken</code> directly.</li>
 </ul>
 
 <h4>userStore (<code>src/stores/userStore.ts</code>)</h4>
@@ -809,24 +810,31 @@ Finished Screen
 <h3>7.2 Auth + State Lifecycle</h3>
 <pre><code>app/_layout.tsx (RootLayout)
   ├── Loads fonts → renders splash for 300ms
+  ├── authStore.restoreSession()           ← runs once at boot
+  │   ├── reads AsyncStorage
+  │   ├── apiClient.setToken() (also fired via the store subscriber)
+  │   └── validates with /auth/me
+  ├── Splash blocks until !fontsLoaded || !splashDone || !authChecked
   └── Renders Stack
       ↓
 app/index.tsx
-  ├── authStore.restoreSession()
-  │   ├── reads AsyncStorage
-  │   ├── apiClient.setToken()
-  │   └── validates with /auth/me
+  ├── reads isAuthenticated from authStore
   ├── if isAuthenticated → &lt;Redirect href="/(tabs)/home" /&gt;
   └── else → &lt;Redirect href="/login" /&gt;
       ↓
 app/login.tsx
   ├── authStore.login(email, password) or .register(...)
+  │   └── store subscriber mirrors token → apiClient
   └── on success → router.replace('/(tabs)/home')
       ↓
 Authenticated tabs
-  ├── Home: homeService.fetch() (GET /home)
+  ├── Home: homeService.fetch() (GET /home) + videoService.list() (GET /videos)
   ├── Library: savedPhrasesStore.load() (AsyncStorage)
-  └── Profile: authService.me() + homeService.fetch()</code></pre>
+  └── Profile: authService.me() + homeService.fetch()
+      └── bottom: Account section → Sign out
+            ├── authStore.logout() (POST /auth/logout)
+            ├── store subscriber clears apiClient token
+            └── router.replace('/login')</code></pre>
 
 <h2 id="types">8. Types &amp; Data Models</h2>
 <p>All types defined in <code>src/types/index.ts</code>.</p>
