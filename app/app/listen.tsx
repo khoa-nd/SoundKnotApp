@@ -56,6 +56,7 @@ export default function ListenScreen() {
   const lineYPositions = useRef<Record<number, number>>({});
   const scrollViewHeight = useRef(0);
   const getPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.getTranscript);
+  const setPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.setTranscript);
 
   // Long-press contextual menu
   const [menuLineIdx, setMenuLineIdx] = useState<number | null>(null);
@@ -90,6 +91,10 @@ export default function ListenScreen() {
       .then((data) => {
         if (!cancelled) {
           setTranscript(data.lines);
+          // Stash so AI Tutor (a sibling route) can read the full transcript
+          // for summary-intent questions. The store already holds AI-split
+          // lines when preprocessing was used; this fills the fallback path.
+          setPreprocessedTranscript(vid, data.lines);
         }
       })
       .catch((err) => {
@@ -102,7 +107,7 @@ export default function ListenScreen() {
       });
 
     return () => { cancelled = true; };
-  }, [vid, getPreprocessedTranscript]);
+  }, [vid, getPreprocessedTranscript, setPreprocessedTranscript]);
 
   useEffect(() => {
     if (!phrasesHydrated) loadPhrases();

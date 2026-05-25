@@ -366,6 +366,7 @@ ai.post("/chat", async (c) => {
       videoChannel: pickString("videoChannel"),
       videoId: pickString("videoId"),
       transcriptWindow: pickString("transcriptWindow"),
+      fullTranscript: pickString("fullTranscript"),
       selection: pickString("selection"),
     };
   }

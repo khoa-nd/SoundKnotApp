@@ -23,7 +23,8 @@ import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
 import { useAiSettingsStore } from '../src/stores/aiSettingsStore';
 import { useSavedPhrasesStore, type SavedPhraseKind } from '../src/stores/savedPhrasesStore';
-import { chat, type AiMessage, type AiContext, type AiAudioAttachment } from '../src/services/aiTutor';
+import { usePreprocessedTranscriptStore } from '../src/stores/preprocessedTranscriptStore';
+import { chat, type AiMessage, type AiContext, type AiAudioAttachment, isSummaryIntent, buildFullTranscript } from '../src/services/aiTutor';
 
 interface UiMessage extends AiMessage {
   id: string;
@@ -56,6 +57,7 @@ export default function AiTutorScreen() {
 
   const { settings, hydrated, load } = useAiSettingsStore();
   const { hydrated: savedHydrated, load: loadSaved, add: addSaved } = useSavedPhrasesStore();
+  const getStoredTranscript = usePreprocessedTranscriptStore((s) => s.getTranscript);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [draft, setDraft] = useState(params.prefill ?? '');
   const [sending, setSending] = useState(false);
@@ -98,6 +100,17 @@ export default function AiTutorScreen() {
     requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
   }, [messages.length, sending]);
 
+  // Per-message context: attach the full timestamped transcript when the user's
+  // message looks like a summary/scope-wide question (or for voice, where we
+  // don't yet know the content). Otherwise stick with the narrow window.
+  const buildContextForMessage = (userMessage: string, isVoice: boolean): AiContext => {
+    const summaryLike = isVoice || isSummaryIntent(userMessage);
+    if (!summaryLike) return baseContext;
+    const stored = params.videoId ? getStoredTranscript(params.videoId) : null;
+    if (!stored?.length) return baseContext;
+    return { ...baseContext, fullTranscript: buildFullTranscript(stored) };
+  };
+
   // ── Send a text message ───────────────────────────────────────────────────
   const sendText = async (text: string, displayText?: string) => {
     const trimmed = text.trim();
@@ -113,7 +126,7 @@ export default function AiTutorScreen() {
     const next = [...messages, userMsg];
     setMessages(next);
     setDraft('');
-    await callAi(next, baseContext);
+    await callAi(next, buildContextForMessage(trimmed, false));
   };
 
   // ── Send a voice message ──────────────────────────────────────────────────
@@ -130,7 +143,7 @@ export default function AiTutorScreen() {
     };
     const next = [...messages, userMsg];
     setMessages(next);
-    await callAi(next, baseContext);
+    await callAi(next, buildContextForMessage('', true));
   };
 
   const callAi = async (history: UiMessage[], context: AiContext) => {
@@ -153,7 +166,13 @@ export default function AiTutorScreen() {
         },
       ]);
     } catch (err: any) {
-      setError(err?.message ?? String(err));
+      const raw = err?.message ?? String(err);
+      // Make quota errors actionable: name the model the user picked and suggest a switch.
+      const isQuota = /429|quota|rate limit|exceeded/i.test(raw);
+      const hint = isQuota
+        ? ` (model: ${settings.model}). Try Gemini 2.0 Flash — much higher free quota.`
+        : '';
+      setError(raw + hint);
     } finally {
       setSending(false);
     }
@@ -469,7 +488,11 @@ function Bubble({
           })}
         </ScrollView>
       ) : (
-        <FormattedMessageText content={message.displayContent ?? message.content} isUser={isUser} colors={colors} />
+        <FormattedMessageText
+          content={message.displayContent ?? message.content}
+          isUser={isUser}
+          colors={colors}
+        />
       )}
     </View>
   );
@@ -479,24 +502,44 @@ function FormattedMessageText({
   content,
   isUser,
   colors,
+  onSeek,
 }: {
   content: string;
   isUser: boolean;
   colors: any;
+  onSeek?: (seconds: number) => void;
 }) {
-  const segments = parseBoldSegments(content);
+  const tokens = tokenizeMessage(content);
   const color = isUser ? colors.paper : colors.ink;
 
   return (
     <Text style={[Typography.bodyMedium, { color }]}>
-      {segments.map((segment, index) => (
-        <Text
-          key={`${index}-${segment.text}`}
-          style={segment.bold ? { fontWeight: '700', color } : { color }}
-        >
-          {segment.text}
-        </Text>
-      ))}
+      {tokens.map((tok, index) => {
+        if (tok.kind === 'timestamp') {
+          const handlePress = onSeek ? () => onSeek(tok.seconds) : undefined;
+          return (
+            <Text
+              key={`${index}-ts`}
+              onPress={handlePress}
+              style={{ color: colors.accent, textDecorationLine: 'underline', fontWeight: '500' }}
+            >
+              {tok.label}
+            </Text>
+          );
+        }
+        if (tok.kind === 'bold') {
+          return (
+            <Text key={`${index}-b`} style={{ fontWeight: '700', color }}>
+              {tok.text}
+            </Text>
+          );
+        }
+        return (
+          <Text key={`${index}-t`} style={{ color }}>
+            {tok.text}
+          </Text>
+        );
+      })}
     </Text>
   );
 }
@@ -547,6 +590,55 @@ function parseBoldSegments(text: string): { text: string; bold: boolean }[] {
   }
 
   return segments.length ? segments : [{ text, bold: false }];
+}
+
+type MessageToken =
+  | { kind: 'text'; text: string }
+  | { kind: 'bold'; text: string }
+  | { kind: 'timestamp'; label: string; seconds: number };
+
+// Walks the assistant message body and emits a flat list of styled tokens.
+// Recognizes **bold** and [t=MM:SS] / [t=H:MM:SS] timestamp citations.
+function tokenizeMessage(text: string): MessageToken[] {
+  const out: MessageToken[] = [];
+  // Single pass: alternately find the next bold OR timestamp, whichever comes first.
+  const boldRe = /\*\*(.+?)\*\*/g;
+  const tsRe = /\[t=(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g;
+  let cursor = 0;
+
+  while (cursor < text.length) {
+    boldRe.lastIndex = cursor;
+    tsRe.lastIndex = cursor;
+    const boldMatch = boldRe.exec(text);
+    const tsMatch = tsRe.exec(text);
+
+    const boldIdx = boldMatch ? boldMatch.index : Infinity;
+    const tsIdx = tsMatch ? tsMatch.index : Infinity;
+    const nextIdx = Math.min(boldIdx, tsIdx);
+
+    if (nextIdx === Infinity) {
+      if (cursor < text.length) out.push({ kind: 'text', text: text.slice(cursor) });
+      break;
+    }
+    if (nextIdx > cursor) {
+      out.push({ kind: 'text', text: text.slice(cursor, nextIdx) });
+    }
+    if (boldIdx <= tsIdx && boldMatch) {
+      out.push({ kind: 'bold', text: boldMatch[1] });
+      cursor = boldMatch.index + boldMatch[0].length;
+    } else if (tsMatch) {
+      const h = tsMatch[3] ? Number(tsMatch[1]) : 0;
+      const m = tsMatch[3] ? Number(tsMatch[2]) : Number(tsMatch[1]);
+      const s = tsMatch[3] ? Number(tsMatch[3]) : Number(tsMatch[2]);
+      const seconds = h * 3600 + m * 60 + s;
+      const label = tsMatch[3]
+        ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+        : `${m}:${String(s).padStart(2, '0')}`;
+      out.push({ kind: 'timestamp', label, seconds });
+      cursor = tsMatch.index + tsMatch[0].length;
+    }
+  }
+  return out.length ? out : [{ kind: 'text', text }];
 }
 
 function parseMarkdownListItems(text: string): string[] {
@@ -619,9 +711,9 @@ function buildPromptSuggestions(): PromptSuggestion[] {
       label: 'List of keywords',
       prompt:
         [
-          'Curate 8 high-value vocabulary items from the nearby transcript for an English listening learner.',
-          'Choose words or short lexical chunks that are actually useful for understanding this video, not obvious filler words and not random rare words.',
-          'Prefer items that carry meaning, argument, emotion, or speaker intent. Avoid duplicates and avoid proper nouns unless essential.',
+          'Curate 8 high-value vocabulary items from this video for an English listening learner.',
+          'Scan the whole transcript and pick words or short lexical chunks that are actually useful for understanding this video — not obvious filler words and not random rare words.',
+          'Prefer items that carry meaning, argument, emotion, or speaker intent. Spread your picks across the video, not just the opening. Avoid duplicates and avoid proper nouns unless essential.',
           'Return only a numbered list. No intro, no outro.',
           'Each item must use exactly this format:',
           '**word or chunk** - learner-friendly meaning in 1 short sentence. Transcript: "exact short transcript quote that uses it".',
@@ -634,8 +726,8 @@ function buildPromptSuggestions(): PromptSuggestion[] {
       label: 'List of grammars or phrases',
       prompt:
         [
-          'Curate 6 useful spoken-English phrases, grammar patterns, discourse markers, or sentence frames from the nearby transcript.',
-          'Choose expressions a learner could reuse in real conversation, especially phrases that show opinion, uncertainty, emphasis, connection, or explanation.',
+          'Curate 6 useful spoken-English phrases, grammar patterns, discourse markers, or sentence frames from this video.',
+          'Scan the whole transcript. Choose expressions a learner could reuse in real conversation, especially phrases that show opinion, uncertainty, emphasis, connection, or explanation. Spread your picks across the video.',
           'Do not list single vocabulary words here unless they are part of a reusable phrase. Avoid generic fillers unless the phrase teaches natural spoken structure.',
           'Return only a numbered list. No intro, no outro.',
           'Each item must use exactly this format:',
