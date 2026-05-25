@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AiMode, AiProvider, AiSettings } from '../services/aiTutor';
-import { GEMINI_MODELS } from '../services/aiTutor';
+import { GEMINI_MODELS, DEFAULT_OPENROUTER_MODEL } from '../services/aiTutor';
 
 const STORAGE_KEY = 'soundknot_ai_settings';
 
@@ -45,7 +45,23 @@ export const useAiSettingsStore = create<AiSettingsState>((set, get) => ({
       const raw = await AsyncStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<AiSettings>;
-        set({ settings: { ...DEFAULTS, ...parsed }, hydrated: true });
+        const merged: AiSettings = { ...DEFAULTS, ...parsed };
+        // Provider-aware stale-model guard.
+        //   - Gemini: snap to GEMINI_MODELS[0] if the persisted ID isn't in the curated list.
+        //   - OpenRouter: model IDs are dynamic (fetched live), so we don't whitelist them.
+        //     We only check the slug looks plausible (contains a "/"), otherwise default.
+        if (merged.provider === 'gemini') {
+          if (!(GEMINI_MODELS as readonly string[]).includes(merged.model)) {
+            merged.model = GEMINI_MODELS[0];
+            await persist(merged);
+          }
+        } else if (merged.provider === 'openrouter') {
+          if (!merged.model || !merged.model.includes('/')) {
+            merged.model = DEFAULT_OPENROUTER_MODEL;
+            await persist(merged);
+          }
+        }
+        set({ settings: merged, hydrated: true });
         return;
       }
     } catch {
@@ -60,7 +76,13 @@ export const useAiSettingsStore = create<AiSettingsState>((set, get) => ({
     await persist(next);
   },
   setProvider: async (provider) => {
-    const next = { ...get().settings, provider };
+    // Reset the model when switching providers so we never carry a Gemini ID
+    // into OpenRouter (or vice versa). Key is also cleared because OpenRouter
+    // and Gemini keys are not interchangeable.
+    const current = get().settings;
+    if (current.provider === provider) return;
+    const defaultModel = provider === 'openrouter' ? DEFAULT_OPENROUTER_MODEL : GEMINI_MODELS[0];
+    const next: AiSettings = { ...current, provider, model: defaultModel, apiKey: '' };
     set({ settings: next });
     await persist(next);
   },

@@ -1,3 +1,6 @@
 node_modules/
 .DS_Store
 *.tsbuildinfo
+
+# Local screenshot / reference dumps used for design discussion. Not committed.
+app/test/resources/20250525/
