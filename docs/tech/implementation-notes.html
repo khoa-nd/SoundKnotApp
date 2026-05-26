@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-24 (Session restoration on app boot + Sign out + Home delete-route deploy fix).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-26 (Model Playground + AI Tutor prompt formatting & output quality parity).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -76,6 +76,8 @@
   <li><span class="badge done">9 ✓</span> AI Tutor generated vocabulary/phrases + Library card UX + Home copy/delete actions</li>
   <li><span class="badge pending">10 …</span> Transcript split stabilization — hybrid local soft-boundary + AI fallback</li>
   <li><span class="badge done">11 ✓</span> Session restoration on app boot + Sign out button + Home delete-route deploy fix</li>
+  <li><span class="badge done">12 ✓</span> Model Playground — parallel execution, latency, tokens, cost estimate</li>
+  <li><span class="badge done">13 ✓</span> AI Tutor prompt refactoring — output quality parity with playground</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -459,6 +461,38 @@ Content-Type: application/json
   <li>Tap delete on any video row → row disappears and stays gone after navigating away and back.</li>
   <li><code>npx tsc --noEmit</code> clean.</li>
 </ol>
+
+<h2>Item 12 — Model Playground</h2>
+<p><em>Spec:</em> "Fan out one prompt across selected Gemini or OpenRouter models. Compare replies, latency, token usage, and estimated cost."</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Introduced a dedicated developer-facing web model playground at <code>app/playground.tsx</code>. It supports direct call fans to selected models of the active provider (Gemini or OpenRouter), tracking latency, token usage, and computing live estimated cost based on model input/output rates.
+</div>
+<ul>
+  <li>Allows choosing provider (Gemini / OpenRouter) and model settings.</li>
+  <li>Displays side-by-side comparative Result cards showing status, structured reply text, latency in ms, token usage (prompt and completion tokens), and computed cost in USD.</li>
+  <li>Includes predefined/custom prompt templates and custom parameter control sliders (temperature, max tokens, topP).</li>
+</ul>
+
+<h2>Item 13 — AI Tutor Prompt Refactoring & Parity with Playground</h2>
+<p><em>Problem:</em> The mobile app returned highly compressed, unformatted bullet points or flat text blocks from <code>gemini-3.1-flash-lite</code>, while the developer playground yielded beautifully structured Markdown analyses with headings, subheadings, and bold vocabulary lists using the same model.</p>
+
+<h3>Root cause</h3>
+<div class="tradeoff">
+  The standard tutor <code>PREAMBLE</code> prompt imposed rigid answer shape templates (e.g. limiting summary responses to single-level unformatted bullet lists with "clean bullets", restricting explanation to exactly 2-4 short paragraphs, and dictating strict length limitations). The playground, operating under a minimal system prompt, allowed the model's natural rich-formatting instructions to flourish.
+</div>
+
+<h3>Fixes</h3>
+<div class="decision">
+  Refactored the system <code>PREAMBLE</code> in both the app client <code>app/src/services/aiTutor.ts</code> and the server proxy <code>api/src/lib/aiSystemPrompt.ts</code> to encourage structured, detailed, and high-quality educational Markdown formatting:
+</div>
+<ul>
+  <li>Replaced rigid shape guidelines with explicit instructions for rich formatting: descriptive headings (### H3), sub-headings, paragraph explanations, and styled bullets for summaries.</li>
+  <li>Instructed the model to use bolding and structure (definitions, concrete usage examples, listening/pronunciation tips) instead of flat paragraphs for vocabulary explanations.</li>
+  <li>Retained vital system rules (the literal <code>[t=MM:SS]</code> timestamp seeker token format, user language mirroring, and priority of explicit user format instructions).</li>
+  <li>Deployed the Hono worker changes via <code>wrangler deploy</code> to <code>soundknot-api.ndkhoa-is.workers.dev</code> so both proxy-mode and direct-mode calls achieve identical high-quality formatted replies.</li>
+</ul>
 
 <h2>Anything else worth knowing</h2>
 <ul>
