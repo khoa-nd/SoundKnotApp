@@ -29,6 +29,14 @@ import { INITIAL_PREPROCESS_STEPS, preprocessService, type PreprocessStep, type 
 import { usePreprocessedTranscriptStore } from '../../src/stores/preprocessedTranscriptStore';
 import type { HomeData, UserVideo } from '../../src/types';
 
+const chunkArray = <T,>(arr: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
 export default function HomeScreen() {
   const colors = useTheme();
   const [urlValue, setUrlValue] = useState('');
@@ -160,7 +168,12 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Date + Streak */}
         <View style={styles.dateRow}>
           <Text style={[Typography.marker, { color: colors.ink4 }]}>Sound Knot · Practice</Text>
@@ -215,6 +228,14 @@ export default function HomeScreen() {
         <View style={styles.hintRow}>
           <Chip label="Paste link" />
           <Chip label="or use clipboard" />
+          {urlValue.length > 0 && (
+            <TouchableOpacity onPress={() => setUrlValue('')} activeOpacity={0.7}>
+              <Chip
+                label="Clear"
+                icon={<Ionicons name="close-circle-outline" size={14} color={colors.negative} />}
+              />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Your videos */}
@@ -238,72 +259,124 @@ export default function HomeScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.contentList}>
-            {videos.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.contentCard, { borderTopColor: colors.hair }]}
-                onPress={() =>
-                  router.push({
-                    pathname: '/listen',
-                    params: { videoId: item.youtube_video_id, userVideoId: item.id },
-                  })
-                }
-                activeOpacity={0.7}
-              >
-                <View style={[styles.contentThumb, { backgroundColor: colors.paper2 }]}>
-                  {item.thumbnail_url ? (
-                    <Image
-                      source={{ uri: item.thumbnail_url }}
-                      style={{ width: 64, height: 64, borderRadius: Radius.md }}
-                    />
-                  ) : (
-                    <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>▶</Text>
-                  )}
-                </View>
-                <View style={styles.contentInfo}>
-                  <Text style={[Typography.bodyMedium, { fontWeight: '500' }]} numberOfLines={1}>
-                    {item.title ?? 'Untitled'}
+          <View style={styles.netflixContainer}>
+            {chunkArray(videos, 10).map((chunk, i) => {
+              const startIdx = i * 10 + 1;
+              const endIdx = Math.min((i + 1) * 10, videos.length);
+              return (
+                <View key={i} style={styles.horizontalSliderContainer}>
+                  <Text style={[styles.sliderTitle, { color: colors.ink3 }]}>
+                    {i === 0 ? 'Recently Added' : `More Videos (${startIdx}–${endIdx})`}
                   </Text>
-                  <Text style={[Typography.monoSmall, { color: colors.ink4, marginTop: Spacing.xs }]}>
-                    {item.channel ?? 'Unknown channel'}
-                  </Text>
-                </View>
-                <View style={styles.contentActions}>
-                  <TouchableOpacity
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      copyVideoUrl(item);
-                    }}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    style={styles.contentActionBtn}
-                    activeOpacity={0.6}
-                    accessibilityRole="button"
-                    accessibilityLabel="Copy video URL"
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.sliderScrollView}
+                    contentContainerStyle={styles.sliderContent}
                   >
-                    <Ionicons name="copy-outline" size={18} color={colors.ink4} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      confirmRemove(item);
-                    }}
-                    disabled={!!removingVideoIds[item.id]}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    style={styles.contentActionBtn}
-                    activeOpacity={0.6}
-                    accessibilityRole="button"
-                    accessibilityLabel="Delete video"
-                  >
-                    {removingVideoIds[item.id] ? (
-                      <ActivityIndicator size="small" color={colors.ink4} />
-                    ) : (
-                      <Ionicons name="close" size={18} color={colors.ink4} />
-                    )}
-                  </TouchableOpacity>
+                    {chunk.map((item) => {
+                      const isRemoving = !!removingVideoIds[item.id];
+                      return (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[
+                            styles.netflixVideoCard,
+                            {
+                              backgroundColor: colors.paper2,
+                              borderColor: colors.hair,
+                            },
+                            isRemoving && styles.videoCardDeleting,
+                          ]}
+                          onPress={() => {
+                            if (isRemoving) return;
+                            router.push({
+                              pathname: '/listen',
+                              params: { videoId: item.youtube_video_id, userVideoId: item.id },
+                            });
+                          }}
+                          activeOpacity={0.8}
+                          disabled={isRemoving}
+                        >
+                          <View style={[styles.cardThumbContainer, { backgroundColor: colors.hair2 }]}>
+                            {item.thumbnail_url ? (
+                              <Image source={{ uri: item.thumbnail_url }} style={styles.cardThumb} />
+                            ) : (
+                              <View style={styles.thumbPlaceholder}>
+                                <Ionicons name="play" size={32} color={colors.ink4} />
+                              </View>
+                            )}
+                            <View style={styles.playOverlay}>
+                              <View style={[styles.playIconCircle, { backgroundColor: 'rgba(42, 37, 34, 0.6)' }]}>
+                                <Ionicons name="play" size={20} color="#FFF" style={{ marginLeft: 3 }} />
+                              </View>
+                            </View>
+                            <View style={[styles.badgeOverlay, { backgroundColor: 'rgba(42, 37, 34, 0.75)' }]}>
+                              <Text style={[Typography.monoSmall, { color: '#FFF', fontSize: 10, fontWeight: '700' }]}>
+                                YOUTUBE
+                              </Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.cardDetails}>
+                            <Text
+                              style={[Typography.bodyMedium, { color: colors.ink, fontWeight: '600' }]}
+                              numberOfLines={2}
+                            >
+                              {item.title ?? 'Untitled'}
+                            </Text>
+                            <View style={styles.channelRow}>
+                              <Ionicons name="logo-youtube" size={12} color={colors.ink3} style={{ marginRight: 6 }} />
+                              <Text style={[Typography.monoSmall, { color: colors.ink3, flex: 1 }]} numberOfLines={1}>
+                                {item.channel ?? 'Unknown channel'}
+                              </Text>
+                            </View>
+
+                            <View style={[styles.cardFooter, { borderTopColor: colors.hair2 }]}>
+                              <TouchableOpacity
+                                style={styles.cardActionBtn}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  copyVideoUrl(item);
+                                }}
+                                disabled={isRemoving}
+                                activeOpacity={0.6}
+                              >
+                                <Ionicons name="copy-outline" size={14} color={colors.ink2} style={{ marginRight: 6 }} />
+                                <Text style={[Typography.buttonSmall, { color: colors.ink2 }]}>Copy</Text>
+                              </TouchableOpacity>
+
+                              <View style={{ width: 1, backgroundColor: colors.hair2, marginVertical: Spacing.xs }} />
+
+                              <TouchableOpacity
+                                style={styles.cardActionBtn}
+                                onPress={(event) => {
+                                  event.stopPropagation();
+                                  confirmRemove(item);
+                                }}
+                                disabled={isRemoving}
+                                activeOpacity={0.6}
+                              >
+                                <Ionicons name="trash-outline" size={14} color={colors.negative} style={{ marginRight: 6 }} />
+                                <Text style={[Typography.buttonSmall, { color: colors.negative }]}>Delete</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+
+                          {isRemoving && (
+                            <View style={[styles.deletingOverlay, { backgroundColor: 'rgba(244, 243, 239, 0.8)' }]}>
+                              <ActivityIndicator size="small" color={colors.accent} />
+                              <Text style={[Typography.monoSmall, { color: colors.ink, marginTop: Spacing.sm }]}>
+                                Removing...
+                              </Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
-              </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         )}
 
@@ -404,35 +477,97 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderRadius: Radius.xl,
   },
-  contentList: {},
-  contentCard: {
-    flexDirection: 'row',
-    gap: Spacing.xl,
-    paddingVertical: Spacing.xl,
-    borderTopWidth: 1,
-    alignItems: 'center',
+  netflixContainer: {
+    gap: Spacing.xxl,
   },
-  contentThumb: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
+  horizontalSliderContainer: {
+    marginBottom: Spacing.md,
+  },
+  sliderTitle: {
+    ...Typography.marker,
+    marginBottom: Spacing.sm,
+  },
+  sliderScrollView: {
+    flexGrow: 0,
+    marginHorizontal: -Spacing.screen,
+  },
+  sliderContent: {
+    paddingHorizontal: Spacing.screen,
+    gap: Spacing.lg,
+  },
+  netflixVideoCard: {
+    width: 240,
+    borderRadius: Radius.xxl,
+    borderWidth: 1,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  videoCardDeleting: {
+    opacity: 0.6,
+  },
+  cardThumbContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    position: 'relative',
     overflow: 'hidden',
   },
-  contentInfo: { flex: 1 },
-  contentActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginLeft: Spacing.sm,
+  cardThumb: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
   },
-  contentActionBtn: {
-    width: 32,
-    height: 32,
+  thumbPlaceholder: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  playOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(42, 37, 34, 0.05)',
+  },
+  playIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: Radius.circle,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeOverlay: {
+    position: 'absolute',
+    bottom: Spacing.sm,
+    right: Spacing.sm,
+    borderRadius: Radius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  cardDetails: {
+    padding: Spacing.xl,
+  },
+  channelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    marginTop: Spacing.xl,
+    paddingTop: Spacing.md,
+  },
+  cardActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  deletingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
   modalBackdrop: {
     flex: 1,
