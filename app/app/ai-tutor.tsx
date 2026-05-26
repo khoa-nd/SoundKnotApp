@@ -467,7 +467,7 @@ function Bubble({
               const textToCopy = parsed.explanation
                 ? `${parsed.title} - ${parsed.explanation}${parsed.example ? ` Example: ${parsed.example}` : ''}`
                 : `${parsed.title}${parsed.example ? ` Example: ${parsed.example}` : ''}`;
-              Clipboard.setStringAsync(textToCopy);
+              copyToClipboard(textToCopy);
               setCopiedIndices((prev) => ({ ...prev, [index]: true }));
               setTimeout(() => {
                 setCopiedIndices((prev) => ({ ...prev, [index]: false }));
@@ -528,17 +528,17 @@ function Bubble({
             <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
               <TouchableOpacity
                 onPress={() => {
-                  const clean = stripMarkdown(message.content);
-                  Clipboard.setStringAsync(clean);
+                  const cleanText = cleanMessageForCopy(message.content);
+                  copyToClipboard(cleanText);
                   setBubbleCopied(true);
                   setTimeout(() => setBubbleCopied(false), 1500);
                 }}
                 activeOpacity={0.7}
-                style={{ opacity: 0.55 }}
+                style={{ opacity: 0.65, padding: 6 }}
                 accessibilityRole="button"
                 accessibilityLabel="Copy response"
               >
-                <Ionicons name={bubbleCopied ? "checkmark" : "copy-outline"} size={14} color={bubbleCopied ? colors.positive : colors.ink} />
+                <Ionicons name={bubbleCopied ? "checkmark" : "copy-outline"} size={18} color={bubbleCopied ? colors.positive : colors.ink} />
               </TouchableOpacity>
             </View>
           )}
@@ -768,6 +768,49 @@ function FormattedMessageText({
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (Platform.OS === 'web') {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      // Fallback for non-secure origins / older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      let success = false;
+      try {
+        success = document.execCommand('copy');
+      } catch (err) {
+        console.error('execCommand copy failed:', err);
+      }
+      document.body.removeChild(textArea);
+      if (success) return true;
+    }
+    await Clipboard.setStringAsync(text);
+    return true;
+  } catch (err) {
+    console.error('Failed to copy to clipboard:', err);
+    return false;
+  }
+}
+
+function cleanMessageForCopy(text: string): string {
+  return text
+    .replace(/\[t=(\d{1,2}):(\d{2})(?::(\d{2}))?\]/g, (_, hOrM, mOrS, s) => {
+      if (s !== undefined) {
+        return `(${hOrM}:${mOrS}:${s})`;
+      }
+      return `(${hOrM}:${mOrS})`;
+    })
+    .trim();
+}
 
 async function readUriAsBase64(uri: string): Promise<string> {
   const res = await fetch(uri);
