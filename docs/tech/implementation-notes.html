@@ -71,13 +71,15 @@
   <li><span class="badge done">4 ✓</span> Active transcript line is now bolded (no background tint)</li>
   <li><span class="badge done">5 ✓</span> Long-press contextual menu — Ask AI Tutor about selection</li>
   <li><span class="badge done">6 ✓</span> AI integration plan + dual-mode runtime + Settings screen</li>
-  <li><span class="badge done">7 ✓</span> Home screen — video library list replaces Recent sessions</li>
+  <li><span class="badge done">7 ✓</span> Home screen — Netflix-style horizontal slider grid & copy/delete actions</li>
   <li><span class="badge done">8 ✓</span> Bookmark per transcript line + Library Phrase/Vocabulary tabs</li>
   <li><span class="badge done">9 ✓</span> AI Tutor generated vocabulary/phrases + Library card UX + Home copy/delete actions</li>
   <li><span class="badge pending">10 …</span> Transcript split stabilization — hybrid local soft-boundary + AI fallback</li>
   <li><span class="badge done">11 ✓</span> Session restoration on app boot + Sign out button + Home delete-route deploy fix</li>
   <li><span class="badge done">12 ✓</span> Model Playground — parallel execution, latency, tokens, cost estimate</li>
   <li><span class="badge done">13 ✓</span> AI Tutor prompt refactoring — output quality parity with playground</li>
+  <li><span class="badge done">14 ✓</span> Dynamic "Clear" input button chip next to Home clipboard actions</li>
+  <li><span class="badge done">15 ✓</span> Keyboard taps persistence behavior (resolves double-tap friction)</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -238,13 +240,21 @@ Content-Type: application/json
   <li><code>router.push</code> calls cast the new pathnames as <code>any</code> in two places. Reason: Expo Router auto-generates typed routes at <code>.expo/types/router.d.ts</code> only when the dev server runs; <code>tsc --noEmit</code> on a fresh checkout doesn't see the new routes yet. Restarting <code>expo start</code> regenerates the types — at that point the casts can be removed.</li>
 </ul>
 
-<h2>Item 7 — Home screen video list</h2>
-<p><em>Spec:</em> "bring videos in the library screen into home screen replace for recent video / session sections."</p>
+<h2>Item 7 — Home screen Netflix-style Video Slider</h2>
+<p><em>Spec:</em> "bring videos in the library screen into home screen replace for recent video / session sections… change to Netflix style with a slider of 10 videos in a row then next row."</p>
 
 <h3>Decisions</h3>
 <div class="decision">
-  Replaced the <code>Knot</code>-based "Recent videos / sessions" list on <code>app/(tabs)/home.tsx</code> with the same video card pattern used on Library: 64×64 thumbnail, title, channel. Same data source (<code>videoService.list()</code>), same row layout, same tap-to-Listen navigation. The home screen now shows the user's full saved video set under a "Your videos" header, directly below the URL paste row.
+  Replaced the flat list layout on <code>app/(tabs)/home.tsx</code> with horizontal Netflix-style card sliders chunked using <code>chunkArray(videos, 10)</code>.
+  Each video row consists of a title and a horizontal scrolling <code>ScrollView</code> populated by card items. To create a seamless bleed effect, cards extend edge-to-edge of the device by using <code>marginHorizontal: -Spacing.screen</code> on the container combined with matching padding.
+  Each card enforces a fixed width of <code>240px</code> and a strict <code>aspectRatio: 16/9</code> for the video thumbnail, overlaid by the video title, channel name, and actions.
 </div>
+
+<h3>Data Grid Chunking & UI flow</h3>
+<ul>
+  <li>Videos are client-side chunked into nested matrices: <code>chunks = chunkArray(videos, 10)</code>. Each chunk renders as a distinct slider section (e.g., "Library Videos (1-10)", "Library Videos (11-20)").</li>
+  <li>If the user has zero saved videos, the screen falls back to displaying the native empty dashboard view with hints.</li>
+</ul>
 
 <h3>Data fetch</h3>
 <ul>
@@ -493,6 +503,22 @@ Content-Type: application/json
   <li>Retained vital system rules (the literal <code>[t=MM:SS]</code> timestamp seeker token format, user language mirroring, and priority of explicit user format instructions).</li>
   <li>Deployed the Hono worker changes via <code>wrangler deploy</code> to <code>soundknot-api.ndkhoa-is.workers.dev</code> so both proxy-mode and direct-mode calls achieve identical high-quality formatted replies.</li>
 </ul>
+
+<h2>Item 14 — Dynamic URL Input "Clear" Chip</h2>
+<p><em>Spec:</em> "Add clear link next to button 'Or Use Clipboard'"</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Implemented a conditional "Clear" chip inside the input hints area of <code>app/(tabs)/home.tsx</code>. When the text inside the URL input (<code>urlValue</code>) has a length greater than zero, the chip appears next to the other helper chips ("Paste link", "Or use clipboard"). Tapping this chip clears the input field immediately by executing <code>setUrlValue('')</code>.
+</div>
+
+<h2>Item 15 — Keyboard Tap Persistence Configuration</h2>
+<p><em>Problem:</em> When the input URL text bar was focused, pressing the execution/submission button required a double-tap (the first tap dismissed the keyboard, and only the second tap actually registered on the button).</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Added <code>keyboardShouldPersistTaps="handled"</code> to the outermost <code>ScrollView</code> wrapper inside <code>app/(tabs)/home.tsx</code>. This ensures that any press event on interactive buttons (like the URL submit button or chips) is intercepted and handled immediately without the keyboard swallow-dismissing the first touch gesture.
+</div>
 
 <h2>Anything else worth knowing</h2>
 <ul>

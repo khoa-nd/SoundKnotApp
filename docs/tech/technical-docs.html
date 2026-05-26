@@ -788,9 +788,11 @@ Index (reads isAuthenticated, redirects)
   └── authenticated   → /(tabs)/home
       ↓
 Home (Home tab)
-  ├── Paste YouTube URL → preprocessing pipeline (provider → length → transcript → language → AI split)
-  │     └── on success → POST /videos → store preprocessed transcript → /listen
-  └── Tap saved video row → /listen
+  ├── Input YouTube URL (keyboardShouldPersistTaps handled)
+  │     ├── Has text → render "Clear" action button chip next to clipboard helpers
+  │     └── Submit URL → preprocessing pipeline (provider → length → transcript → language → AI split)
+  │           └── on success → POST /videos → store preprocessed transcript → /listen
+  └── Tap horizontal Netflix-style video card slider → /listen
       ↓
 Listen Screen
   ├── YouTube player (clipped rounded box)
@@ -1198,8 +1200,30 @@ npm run test:transcript -w app -- --json --url "https://www.youtube.com/watch?v=
   <li><strong>Anti-pattern avoided</strong>: never use a ScrollView ref callback for imperative scroll — it fires every render. Always use <code>useRef</code> + <code>useEffect</code> keyed on the tracked index.</li>
 </ul>
 
-<h3>10.7 Home Library Item Removal (<code>app/(tabs)/home.tsx</code>)</h3>
-<p>Each video row in the Home list has copy and delete icon buttons. Tapping delete shows an <code>Alert.alert</code> confirm sheet, then performs an optimistic update:</p>
+<h3>10.7 Home Netflix-style Video Grid & Deletion (<code>app/(tabs)/home.tsx</code>)</h3>
+<p>The Home screen organizes the user's video library into Netflix-style horizontal sliding grids using chunk partitions of 10 items. It also implements keyboard bypass features and dynamic input reset capabilities.</p>
+
+<h4>A. Grid Layout & Netflix Slider BLEED</h4>
+<ul>
+  <li>Videos retrieved from <code>videoService.list()</code> are grouped into arrays of at most 10: <code>const chunks = chunkArray(videos, 10)</code>.</li>
+  <li>Each chunk is rendered as a separate horizontal <code>ScrollView</code> row with titles dynamically labeled by rank (e.g. "Library Videos (1-10)").</li>
+  <li>To create an edge-to-edge bleed layout matching the design system, the slider components apply negative horizontal margins (<code>marginHorizontal: -Spacing.screen</code>) on the <code>ScrollView</code> container, offset by matching positive padding on its inner content container.</li>
+  <li>Each card enforces a fixed width of <code>240px</code> and a strict <code>aspectRatio: 16/9</code> for the video thumbnail. Overlaid items (title, channel name, actions) are placed using absolute bounds to prevent layout distortion on smaller screen profiles.</li>
+</ul>
+
+<h4>B. Interactive URL Clear Chip</h4>
+<ul>
+  <li>A conditional "Clear" chip renders next to the YouTube paste helpers when <code>urlValue</code> has content: <code>urlValue.length > 0 && ...</code>.</li>
+  <li>Tapping this chip resets the active URL field (<code>setUrlValue('')</code>) for improved progressive enhancement.</li>
+</ul>
+
+<h4>C. Keyboard Taps Persistence</h4>
+<ul>
+  <li>To bypass React Native's default keyboard consumption behavior—where tapping any button during active text entry requires a double-tap (first to dismiss the keyboard, second to fire the onPress handler)—the outer page <code>ScrollView</code> has been configured with <code>keyboardShouldPersistTaps="handled"</code>. This allows button and chip touch events to fire immediately.</li>
+</ul>
+
+<h4>D. Video Item Removal</h4>
+<p>Each video card exposes copy and delete icon buttons. Tapping delete shows an <code>Alert.alert</code> confirm sheet, then performs an optimistic update:</p>
 <ol>
   <li>Snapshot current <code>videos</code> array</li>
   <li>Filter the doomed item out and <code>setVideos()</code> immediately for instant feedback</li>
