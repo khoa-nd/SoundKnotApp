@@ -548,6 +548,84 @@ function Bubble({
   );
 }
 
+interface MarkdownBlock {
+  type: 'heading' | 'list-item' | 'paragraph' | 'blockquote';
+  level?: number;
+  listType?: 'unordered' | 'ordered';
+  index?: number;
+  content: string;
+}
+
+function parseMarkdownBlocks(text: string): MarkdownBlock[] {
+  const lines = text.split('\n');
+  const blocks: MarkdownBlock[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    // Check for Headings
+    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
+    if (headingMatch) {
+      blocks.push({
+        type: 'heading',
+        level: headingMatch[1].length,
+        content: headingMatch[2].trim(),
+      });
+      continue;
+    }
+
+    // Check for blockquote
+    const quoteMatch = line.match(/^>\s+(.+)$/);
+    if (quoteMatch) {
+      blocks.push({
+        type: 'blockquote',
+        content: quoteMatch[1].trim(),
+      });
+      continue;
+    }
+
+    // Check for Unordered List items
+    const uListMatch = line.match(/^[-*+]\s+(.+)$/);
+    if (uListMatch) {
+      blocks.push({
+        type: 'list-item',
+        listType: 'unordered',
+        content: uListMatch[1].trim(),
+      });
+      continue;
+    }
+
+    // Check for Ordered List items
+    const oListMatch = line.match(/^(\d+)[.)]\s+(.+)$/);
+    if (oListMatch) {
+      blocks.push({
+        type: 'list-item',
+        listType: 'ordered',
+        index: parseInt(oListMatch[1], 10),
+        content: oListMatch[2].trim(),
+      });
+      continue;
+    }
+
+    // Default: paragraph
+    // If the last block is a paragraph, append to it
+    if (blocks.length > 0 && blocks[blocks.length - 1].type === 'paragraph') {
+      blocks[blocks.length - 1].content += ' ' + trimmed;
+    } else {
+      blocks.push({
+        type: 'paragraph',
+        content: trimmed,
+      });
+    }
+  }
+
+  return blocks;
+}
+
 function FormattedMessageText({
   content,
   isUser,
@@ -559,38 +637,133 @@ function FormattedMessageText({
   colors: any;
   onSeek?: (seconds: number) => void;
 }) {
-  const tokens = tokenizeMessage(content);
-  const color = isUser ? colors.paper : colors.ink;
+  const blocks = React.useMemo(() => parseMarkdownBlocks(content), [content]);
+  const textColor = isUser ? colors.paper : colors.ink;
 
-  return (
-    <Text style={[Typography.bodyMedium, { color }]}>
-      {tokens.map((tok, index) => {
-        if (tok.kind === 'timestamp') {
-          const handlePress = onSeek ? () => onSeek(tok.seconds) : undefined;
-          return (
-            <Text
-              key={`${index}-ts`}
-              onPress={handlePress}
-              style={{ color: colors.accent, textDecorationLine: 'underline', fontWeight: '500' }}
-            >
-              {tok.label}
-            </Text>
-          );
-        }
-        if (tok.kind === 'bold') {
-          return (
-            <Text key={`${index}-b`} style={{ fontWeight: '700', color }}>
-              {tok.text}
-            </Text>
-          );
-        }
+  const renderInlineContent = (text: string) => {
+    const tokens = tokenizeMessage(text);
+    return tokens.map((tok, index) => {
+      if (tok.kind === 'timestamp') {
+        const handlePress = onSeek ? () => onSeek(tok.seconds) : undefined;
         return (
-          <Text key={`${index}-t`} style={{ color }}>
+          <Text
+            key={`${index}-ts`}
+            onPress={handlePress}
+            style={{ color: colors.accent, textDecorationLine: 'underline', fontWeight: '500' }}
+          >
+            {tok.label}
+          </Text>
+        );
+      }
+      if (tok.kind === 'bold') {
+        return (
+          <Text key={`${index}-b`} style={{ fontWeight: '700', color: textColor }}>
             {tok.text}
           </Text>
         );
+      }
+      return (
+        <Text key={`${index}-t`} style={{ color: textColor }}>
+          {tok.text}
+        </Text>
+      );
+    });
+  };
+
+  return (
+    <View style={{ gap: Spacing.md, width: '100%' }}>
+      {blocks.map((block, bIdx) => {
+        if (block.type === 'heading') {
+          const isH12 = (block.level ?? 3) <= 2;
+          return (
+            <View key={`b-${bIdx}`} style={{ marginTop: Spacing.xs, marginBottom: 2 }}>
+              <Text
+                style={{
+                  fontFamily: Typography.headingSmall.fontFamily,
+                  fontSize: isH12 ? 18 : 15,
+                  fontWeight: '700',
+                  color: textColor,
+                }}
+              >
+                {renderInlineContent(block.content)}
+              </Text>
+            </View>
+          );
+        }
+
+        if (block.type === 'blockquote') {
+          return (
+            <View
+              key={`b-${bIdx}`}
+              style={{
+                borderLeftWidth: 3,
+                borderLeftColor: colors.hair,
+                paddingLeft: Spacing.md,
+                marginVertical: 2,
+              }}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: isUser ? colors.paper : colors.ink2,
+                    fontStyle: 'italic',
+                  },
+                ]}
+              >
+                {renderInlineContent(block.content)}
+              </Text>
+            </View>
+          );
+        }
+
+        if (block.type === 'list-item') {
+          return (
+            <View
+              key={`b-${bIdx}`}
+              style={{
+                flexDirection: 'row',
+                paddingLeft: Spacing.sm,
+                marginVertical: 2,
+                alignItems: 'flex-start',
+              }}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: textColor,
+                    marginRight: Spacing.sm,
+                    fontWeight: '700',
+                  },
+                ]}
+              >
+                {block.listType === 'ordered' ? `${block.index}.` : '•'}
+              </Text>
+              <Text style={[Typography.bodyMedium, { flex: 1, color: textColor }]}>
+                {renderInlineContent(block.content)}
+              </Text>
+            </View>
+          );
+        }
+
+        // Paragraph
+        return (
+          <Text
+            key={`b-${bIdx}`}
+            style={[
+              Typography.bodyMedium,
+              {
+                color: textColor,
+                lineHeight: 20,
+              },
+            ]}
+          >
+            {renderInlineContent(block.content)}
+          </Text>
+        );
       })}
-    </Text>
+    </View>
   );
 }
 
