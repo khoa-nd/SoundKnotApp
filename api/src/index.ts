@@ -6,6 +6,7 @@ import videos from "./routes/videos";
 import sessions from "./routes/sessions";
 import home from "./routes/home";
 import ai from "./routes/ai";
+import transcripts from "./routes/transcripts";
 
 type Variables = {
   userId: string;
@@ -38,5 +39,6 @@ app.route("/videos", videos);
 app.route("/sessions", sessions);
 app.route("/home", home);
 app.route("/ai", ai);
+app.route("/transcripts", transcripts);
 
 export default app;

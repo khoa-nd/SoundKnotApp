@@ -8,12 +8,14 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium } from '@expo-google-fonts/jetbrains-mono';
 import { useTheme } from '../src/constants/theme';
 import { useAuthStore } from '../src/stores/authStore';
+import { usePreprocessedTranscriptStore } from '../src/stores/preprocessedTranscriptStore';
 
 export default function RootLayout() {
   const colors = useTheme();
   const [splashDone, setSplashDone] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const restoreSession = useAuthStore((s) => s.restoreSession);
+  const loadTranscripts = usePreprocessedTranscriptStore((s) => s.load);
 
   const [fontsLoaded] = useFonts({
     Inter_400Regular,
@@ -27,6 +29,10 @@ export default function RootLayout() {
   useEffect(() => {
     restoreSession().finally(() => setAuthChecked(true));
   }, [restoreSession]);
+
+  useEffect(() => {
+    void loadTranscripts();
+  }, [loadTranscripts]);
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -88,6 +94,12 @@ export default function RootLayout() {
         />
         <Stack.Screen
           name="ai-settings"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="playground"
           options={{
             animation: 'slide_from_right',
           }}

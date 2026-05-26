@@ -1,5 +1,6 @@
 import { apiClient } from './api';
 import { fetchRawTranscript, packTranscriptLines, splitTranscriptLocally, type TranscriptLine } from './transcript';
+import { transcriptApi } from './transcriptApi';
 
 const MAX_VIDEO_SECONDS = 30 * 60;
 
@@ -96,28 +97,39 @@ export const preprocessService = {
     onStep('duration', 'done', metadata.title ? `Video found: ${metadata.title}` : 'Video found.');
 
     onStep('transcript', 'running');
-    const raw = await fetchRawTranscript(videoId);
-    if (raw.lines.length === 0) {
-      onStep('transcript', 'failed', 'No transcript is available for this video.');
-      throw new Error('No transcript is available for this video.');
+    const cached = await transcriptApi.get(videoId).catch(() => null);
+    let rawLines: TranscriptLine[];
+    if (cached && cached.length > 0) {
+      rawLines = cached;
+      onStep('transcript', 'done', `${cached.length} transcript fragments loaded from server cache.`);
+    } else {
+      const raw = await fetchRawTranscript(videoId);
+      if (raw.lines.length === 0) {
+        onStep('transcript', 'failed', 'No transcript is available for this video.');
+        throw new Error('No transcript is available for this video.');
+      }
+      rawLines = raw.lines;
+      onStep('transcript', 'done', `${raw.lines.length} transcript fragments loaded.`);
+      transcriptApi.save(videoId, raw.lines).catch((err) => {
+        console.warn('Failed to save transcript to server cache:', err?.message ?? err);
+      });
     }
-    const duration = estimateTranscriptDuration(raw.lines);
+    const duration = estimateTranscriptDuration(rawLines);
     if (duration > MAX_VIDEO_SECONDS) {
       onStep('duration', 'failed', 'Video must be less than 30 minutes.');
       throw new Error('Video must be less than 30 minutes.');
     }
-    onStep('transcript', 'done', `${raw.lines.length} transcript fragments loaded.`);
     onStep('duration', 'done', `${Math.ceil(duration / 60)} min video.`);
 
     onStep('language', 'running');
-    assertLikelyEnglish(raw.lines);
+    assertLikelyEnglish(rawLines);
     onStep('language', 'done', 'Transcript looks like English.');
 
     onStep('ai', 'running');
     try {
       const response = await apiClient.post<SplitTranscriptResponse>('/ai/split-transcript', {
         videoId,
-        transcript: raw.lines,
+        transcript: rawLines,
       });
       if (!Array.isArray(response.lines) || response.lines.length === 0) {
         throw new Error('AI did not return any transcript segments.');
@@ -126,7 +138,7 @@ export const preprocessService = {
       onStep('ai', 'done', `${packed.length} practice lines prepared.`);
       return { videoId, lines: packed };
     } catch {
-      const fallback = splitTranscriptLocally(raw.lines);
+      const fallback = splitTranscriptLocally(rawLines);
       onStep('ai', 'done', `AI split unavailable; prepared ${fallback.length} local practice lines.`);
       return { videoId, lines: fallback };
     }

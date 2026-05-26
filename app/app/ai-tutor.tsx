@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
@@ -433,6 +434,8 @@ function Bubble({
 }) {
   const isUser = message.role === 'user';
   const listItems = !isUser && message.listKind ? parseMarkdownListItems(message.content) : [];
+  const [copiedIndices, setCopiedIndices] = useState<Record<number, boolean>>({});
+  const [bubbleCopied, setBubbleCopied] = useState(false);
 
   return (
     <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi, {
@@ -458,6 +461,19 @@ function Bubble({
             const key = savedItemKey(item, message.listKind!);
             const saved = !!savedGenerated[key];
             const parsed = parseGeneratedItem(item);
+            const isCopied = !!copiedIndices[index];
+
+            const handleCopy = () => {
+              const textToCopy = parsed.explanation
+                ? `${parsed.title} - ${parsed.explanation}${parsed.example ? ` Example: ${parsed.example}` : ''}`
+                : `${parsed.title}${parsed.example ? ` Example: ${parsed.example}` : ''}`;
+              Clipboard.setStringAsync(textToCopy);
+              setCopiedIndices((prev) => ({ ...prev, [index]: true }));
+              setTimeout(() => {
+                setCopiedIndices((prev) => ({ ...prev, [index]: false }));
+              }, 1500);
+            };
+
             return (
               <View key={`${index}-${item.slice(0, 16)}`} style={[styles.generatedListItem, { borderColor: colors.hair, backgroundColor: colors.paper }]}>
                 <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>#{index + 1}</Text>
@@ -470,29 +486,63 @@ function Bubble({
                     <Text style={[styles.generatedExample, { color: colors.ink3 }]}>{parsed.example}</Text>
                   )}
                 </View>
-                <TouchableOpacity
-                  onPress={() => onSaveGeneratedItem(stripMarkdown(item), message.listKind!)}
-                  disabled={saved}
-                  style={[
-                    styles.addItemBtn,
-                    { borderColor: colors.hair, backgroundColor: saved ? colors.ink : colors.paper },
-                  ]}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel={saved ? 'Saved' : 'Save item'}
-                >
-                  <Ionicons name={saved ? 'checkmark' : 'add'} size={16} color={saved ? colors.paper : colors.ink} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.md }}>
+                  <TouchableOpacity
+                    onPress={handleCopy}
+                    style={[
+                      styles.addItemBtn,
+                      { borderColor: colors.hair, backgroundColor: colors.paper },
+                    ]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy item"
+                  >
+                    <Ionicons name={isCopied ? "checkmark" : "copy-outline"} size={16} color={isCopied ? colors.positive : colors.ink} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => onSaveGeneratedItem(stripMarkdown(item), message.listKind!)}
+                    disabled={saved}
+                    style={[
+                      styles.addItemBtn,
+                      { borderColor: colors.hair, backgroundColor: saved ? colors.ink : colors.paper },
+                    ]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={saved ? 'Saved' : 'Save item'}
+                  >
+                    <Ionicons name={saved ? 'checkmark' : 'add'} size={16} color={saved ? colors.paper : colors.ink} />
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           })}
         </ScrollView>
       ) : (
-        <FormattedMessageText
-          content={message.displayContent ?? message.content}
-          isUser={isUser}
-          colors={colors}
-        />
+        <View style={{ gap: Spacing.sm }}>
+          <FormattedMessageText
+            content={message.displayContent ?? message.content}
+            isUser={isUser}
+            colors={colors}
+          />
+          {!isUser && (
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+              <TouchableOpacity
+                onPress={() => {
+                  const clean = stripMarkdown(message.content);
+                  Clipboard.setStringAsync(clean);
+                  setBubbleCopied(true);
+                  setTimeout(() => setBubbleCopied(false), 1500);
+                }}
+                activeOpacity={0.7}
+                style={{ opacity: 0.55 }}
+                accessibilityRole="button"
+                accessibilityLabel="Copy response"
+              >
+                <Ionicons name={bubbleCopied ? "checkmark" : "copy-outline"} size={14} color={bubbleCopied ? colors.positive : colors.ink} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       )}
     </View>
   );

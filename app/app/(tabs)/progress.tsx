@@ -1,7 +1,7 @@
 // ── Sound Knot V2 — Progress Screen
 // Streak stats + 12-week heatmap + listening indicators + per-segment mastery
 import React, { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -172,6 +172,18 @@ export default function ProgressScreen() {
               </>
             )}
           </TouchableOpacity>
+          {Platform.OS === 'web' && (
+            <TouchableOpacity
+              style={[styles.devLink, { borderColor: colors.hair, backgroundColor: colors.paper2 }]}
+              onPress={() => router.push('/playground' as any)}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Open model playground"
+            >
+              <Ionicons name="flask-outline" size={18} color={colors.ink} />
+              <Text style={[Typography.button, { color: colors.ink }]}>Model Playground</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={{ height: 40 }} />
@@ -268,5 +280,15 @@ const styles = StyleSheet.create({
     height: 48,
     borderWidth: 1,
     borderRadius: Radius.pill,
+  },
+  devLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    height: 48,
+    borderWidth: 1,
+    borderRadius: Radius.pill,
+    marginTop: Spacing.md,
   },
 });
