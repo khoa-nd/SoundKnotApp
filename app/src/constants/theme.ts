@@ -1,10 +1,10 @@
-// ── Sound Knot V2 — Theme hook (light only)
-import { LightColors } from './Colors';
+// ── Sound Knot V2 — Theme hook (dark Spotify-style)
+import { DarkColors, type ColorTokens } from './Colors';
 
-export function useTheme(): typeof LightColors {
-  return LightColors;
+export function useTheme(): ColorTokens {
+  return DarkColors;
 }
 
 export function useIsDark(): boolean {
-  return false;
+  return true;
 }

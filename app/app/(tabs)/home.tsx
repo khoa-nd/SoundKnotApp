@@ -1,7 +1,7 @@
 // ── Sound Knot V2 — Home Screen
 // Paste YouTube URL → auto-navigate to Listen
 // Hero + URL input + user's video library
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,31 +10,32 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Image,
-  Alert,
   Modal,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../src/constants/theme';
 import { Typography } from '../../src/constants/Typography';
 import { Spacing, Radius } from '../../src/constants/Spacing';
 import { Chip } from '../../src/components/ui/Chip';
+import { HighlightCover } from '../../src/components/spotify/HighlightCover';
+import { SpotifyCoverSlider } from '../../src/components/spotify/SpotifyCoverSlider';
+import { RankedSlider } from '../../src/components/spotify/RankedSlider';
 import { homeService } from '../../src/services/home';
 import { videoService } from '../../src/services/videos';
 import { INITIAL_PREPROCESS_STEPS, preprocessService, type PreprocessStep, type PreprocessStepId } from '../../src/services/preprocess';
 import { usePreprocessedTranscriptStore } from '../../src/stores/preprocessedTranscriptStore';
 import type { HomeData, UserVideo } from '../../src/types';
 
-const chunkArray = <T,>(arr: T[], size: number): T[][] => {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
+const FEATURED_VIDEO: UserVideo = {
+  id: 'featured',
+  user_id: '',
+  youtube_video_id: 'C6ioLFXAMVE',
+  title: 'How to Improve Your Communication Skills | Matt Abrahams & Dr. Andrew Huberman',
+  channel: 'Huberman Lab Clips',
+  thumbnail_url: 'https://i.ytimg.com/vi/C6ioLFXAMVE/maxresdefault.jpg',
+  added_at: '',
 };
 
 export default function HomeScreen() {
@@ -44,19 +45,9 @@ export default function HomeScreen() {
   const [videos, setVideos] = useState<UserVideo[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [removingVideoIds, setRemovingVideoIds] = useState<Record<string, boolean>>({});
-  const [copiedMessage, setCopiedMessage] = useState<string | null>(null);
   const [preprocessSteps, setPreprocessSteps] = useState<PreprocessStep[]>(INITIAL_PREPROCESS_STEPS);
   const [preprocessError, setPreprocessError] = useState<string | null>(null);
   const setPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.setTranscript);
-  const copiedOpacity = useRef(new Animated.Value(0)).current;
-  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    };
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -104,68 +95,6 @@ export default function HomeScreen() {
     }
   };
 
-  const confirmRemove = (item: UserVideo) => {
-    Alert.alert(
-      'Remove video?',
-      `"${item.title ?? 'Untitled'}" will be removed from your library.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            const prev = videos;
-            setVideos(prev.filter((v) => v.id !== item.id));
-            setRemovingVideoIds((ids) => ({ ...ids, [item.id]: true }));
-            try {
-              await videoService.remove(item.id);
-            } catch (err: any) {
-              const message = err?.message ?? 'Delete request failed.';
-              if (!message.includes('404') && !message.toLowerCase().includes('not found')) {
-                setVideos(prev);
-                Alert.alert('Could not remove video', message);
-              }
-            } finally {
-              setRemovingVideoIds((ids) => {
-                const next = { ...ids };
-                delete next[item.id];
-                return next;
-              });
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  const copyVideoUrl = async (item: UserVideo) => {
-    const url = `https://www.youtube.com/watch?v=${item.youtube_video_id}`;
-    await Clipboard.setStringAsync(url);
-    showCopiedNotice(`Copied ${url}`);
-  };
-
-  const showCopiedNotice = (message: string) => {
-    if (copiedTimer.current) clearTimeout(copiedTimer.current);
-    setCopiedMessage(message);
-    copiedOpacity.setValue(0);
-    Animated.timing(copiedOpacity, {
-      toValue: 1,
-      duration: 160,
-      useNativeDriver: true,
-    }).start();
-    copiedTimer.current = setTimeout(() => {
-      Animated.timing(copiedOpacity, {
-        toValue: 0,
-        duration: 220,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setCopiedMessage(null);
-      });
-    }, 1800);
-  };
-
-  const streak = homeData?.progress?.current_streak ?? 0;
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
       <ScrollView
@@ -174,16 +103,14 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Date + Streak */}
-        <View style={styles.dateRow}>
-          <Text style={[Typography.marker, { color: colors.ink4 }]}>Sound Knot · Practice</Text>
-          {streak > 0 && <Chip label={`${streak} day streak`} dotColor={colors.accent} />}
-        </View>
-
         {/* Hero text */}
         <View style={styles.heroSection}>
-          <Text style={[Typography.titleLarge, { color: colors.ink3 }]}>Bring in a video.</Text>
-          <Text style={[Typography.titleLarge, Typography.serifItalic]}>Work the knot.</Text>
+          <Text style={[Typography.titleLarge, { color: colors.ink3, fontWeight: '400' }]}>
+            Bring in a <Text style={{ fontWeight: '800' }}>sound</Text>.
+          </Text>
+          <Text style={[Typography.titleLarge, { color: colors.ink3, fontWeight: '400' }]}>
+            Work the <Text style={{ fontWeight: '800' }}>knot</Text>.
+          </Text>
         </View>
 
         {/* URL Input */}
@@ -238,145 +165,37 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {/* Your videos */}
-        <View style={styles.sectionHeader}>
-          <Text style={[Typography.marker, { color: colors.ink4 }]}>Your videos</Text>
-          {!loading && videos.length > 0 && (
-            <Text style={[Typography.marker, { color: colors.ink4 }]}>
-              {videos.length} video{videos.length !== 1 ? 's' : ''}
-            </Text>
-          )}
-        </View>
+        {!loading && videos.length > 0 && (
+          <SpotifyCoverSlider
+            title="Recent Videos"
+            videos={videos}
+            onPress={(v) => router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id, userVideoId: v.id } })}
+          />
+        )}
 
-        {loading ? (
+        <HighlightCover
+          video={FEATURED_VIDEO}
+          onPress={(v) => router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id } })}
+        />
+
+        {!loading && videos.length > 0 && (
+          <RankedSlider
+            title="Trending Videos"
+            videos={videos}
+            onPress={(v) => router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id, userVideoId: v.id } })}
+          />
+        )}
+
+        {loading && (
           <View style={{ alignItems: 'center', paddingVertical: Spacing.massive }}>
             <ActivityIndicator size="small" color={colors.accent} />
           </View>
-        ) : videos.length === 0 ? (
+        )}
+        {!loading && videos.length === 0 && (
           <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
             <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
               No videos yet. Paste a YouTube URL above to add your first one.
             </Text>
-          </View>
-        ) : (
-          <View style={styles.netflixContainer}>
-            {chunkArray(videos, 10).map((chunk, i) => {
-              const startIdx = i * 10 + 1;
-              const endIdx = Math.min((i + 1) * 10, videos.length);
-              return (
-                <View key={i} style={styles.horizontalSliderContainer}>
-                  <Text style={[styles.sliderTitle, { color: colors.ink3 }]}>
-                    {i === 0 ? 'Recently Added' : `More Videos (${startIdx}–${endIdx})`}
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.sliderScrollView}
-                    contentContainerStyle={styles.sliderContent}
-                  >
-                    {chunk.map((item) => {
-                      const isRemoving = !!removingVideoIds[item.id];
-                      return (
-                        <TouchableOpacity
-                          key={item.id}
-                          style={[
-                            styles.netflixVideoCard,
-                            {
-                              backgroundColor: colors.paper2,
-                              borderColor: colors.hair,
-                            },
-                            isRemoving && styles.videoCardDeleting,
-                          ]}
-                          onPress={() => {
-                            if (isRemoving) return;
-                            router.push({
-                              pathname: '/listen',
-                              params: { videoId: item.youtube_video_id, userVideoId: item.id },
-                            });
-                          }}
-                          activeOpacity={0.8}
-                          disabled={isRemoving}
-                        >
-                          <View style={[styles.cardThumbContainer, { backgroundColor: colors.hair2 }]}>
-                            {item.thumbnail_url ? (
-                              <Image source={{ uri: item.thumbnail_url }} style={styles.cardThumb} />
-                            ) : (
-                              <View style={styles.thumbPlaceholder}>
-                                <Ionicons name="play" size={32} color={colors.ink4} />
-                              </View>
-                            )}
-                            <View style={styles.playOverlay}>
-                              <View style={[styles.playIconCircle, { backgroundColor: 'rgba(42, 37, 34, 0.6)' }]}>
-                                <Ionicons name="play" size={20} color="#FFF" style={{ marginLeft: 3 }} />
-                              </View>
-                            </View>
-                            <View style={[styles.badgeOverlay, { backgroundColor: 'rgba(42, 37, 34, 0.75)' }]}>
-                              <Text style={[Typography.monoSmall, { color: '#FFF', fontSize: 10, fontWeight: '700' }]}>
-                                YOUTUBE
-                              </Text>
-                            </View>
-                          </View>
-
-                          <View style={styles.cardDetails}>
-                            <Text
-                              style={[Typography.bodyMedium, { color: colors.ink, fontWeight: '600' }]}
-                              numberOfLines={2}
-                            >
-                              {item.title ?? 'Untitled'}
-                            </Text>
-                            <View style={styles.channelRow}>
-                              <Ionicons name="logo-youtube" size={12} color={colors.ink3} style={{ marginRight: 6 }} />
-                              <Text style={[Typography.monoSmall, { color: colors.ink3, flex: 1 }]} numberOfLines={1}>
-                                {item.channel ?? 'Unknown channel'}
-                              </Text>
-                            </View>
-
-                            <View style={[styles.cardFooter, { borderTopColor: colors.hair2 }]}>
-                              <TouchableOpacity
-                                style={styles.cardActionBtn}
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  copyVideoUrl(item);
-                                }}
-                                disabled={isRemoving}
-                                activeOpacity={0.6}
-                              >
-                                <Ionicons name="copy-outline" size={14} color={colors.ink2} style={{ marginRight: 6 }} />
-                                <Text style={[Typography.buttonSmall, { color: colors.ink2 }]}>Copy</Text>
-                              </TouchableOpacity>
-
-                              <View style={{ width: 1, backgroundColor: colors.hair2, marginVertical: Spacing.xs }} />
-
-                              <TouchableOpacity
-                                style={styles.cardActionBtn}
-                                onPress={(event) => {
-                                  event.stopPropagation();
-                                  confirmRemove(item);
-                                }}
-                                disabled={isRemoving}
-                                activeOpacity={0.6}
-                              >
-                                <Ionicons name="trash-outline" size={14} color={colors.negative} style={{ marginRight: 6 }} />
-                                <Text style={[Typography.buttonSmall, { color: colors.negative }]}>Delete</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-
-                          {isRemoving && (
-                            <View style={[styles.deletingOverlay, { backgroundColor: 'rgba(244, 243, 239, 0.8)' }]}>
-                              <ActivityIndicator size="small" color={colors.accent} />
-                              <Text style={[Typography.monoSmall, { color: colors.ink, marginTop: Spacing.sm }]}>
-                                Removing...
-                              </Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </ScrollView>
-                </View>
-              );
-            })}
           </View>
         )}
 
@@ -424,13 +243,6 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-      {!!copiedMessage && (
-        <Animated.View style={[styles.toast, { backgroundColor: colors.ink, opacity: copiedOpacity }]}>
-          <Text style={[Typography.monoSmall, { color: colors.paper }]} numberOfLines={2}>
-            {copiedMessage}
-          </Text>
-        </Animated.View>
-      )}
     </SafeAreaView>
   );
 }
@@ -439,13 +251,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
   content: { padding: Spacing.screen },
-  dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  heroSection: { marginTop: Spacing.xl, marginBottom: Spacing.xxxl },
+  heroSection: { marginTop: -13, marginBottom: Spacing.xxxl },
   urlRow: { position: 'relative', marginBottom: Spacing.md },
   urlInput: {
     borderWidth: 1,
@@ -465,113 +271,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hintRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.xxxl },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: Spacing.lg,
-  },
   emptyBox: {
     padding: Spacing.xxl,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: Radius.xl,
   },
-  netflixContainer: {
-    gap: Spacing.xxl,
-  },
-  horizontalSliderContainer: {
-    marginBottom: Spacing.md,
-  },
-  sliderTitle: {
-    ...Typography.marker,
-    marginBottom: Spacing.sm,
-  },
-  sliderScrollView: {
-    flexGrow: 0,
-    marginHorizontal: -Spacing.screen,
-  },
-  sliderContent: {
-    paddingHorizontal: Spacing.screen,
-    gap: Spacing.lg,
-  },
-  netflixVideoCard: {
-    width: 240,
-    borderRadius: Radius.xxl,
-    borderWidth: 1,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  videoCardDeleting: {
-    opacity: 0.6,
-  },
-  cardThumbContainer: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  cardThumb: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  thumbPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(42, 37, 34, 0.05)',
-  },
-  playIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.circle,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeOverlay: {
-    position: 'absolute',
-    bottom: Spacing.sm,
-    right: Spacing.sm,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  cardDetails: {
-    padding: Spacing.xl,
-  },
-  channelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.xs,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    marginTop: Spacing.xl,
-    paddingTop: Spacing.md,
-  },
-  cardActionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  deletingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-  },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(42, 37, 34, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     padding: Spacing.screen,
   },
@@ -603,14 +311,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.xl,
-  },
-  toast: {
-    position: 'absolute',
-    left: Spacing.screen,
-    right: Spacing.screen,
-    bottom: Spacing.xxxl,
-    borderRadius: Radius.xl,
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.lg,
   },
 });

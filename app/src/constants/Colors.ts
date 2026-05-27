@@ -28,28 +28,43 @@ export const LightColors = {
 } as const;
 
 export const DarkColors = {
-  paper: '#1C1A17',
-  paper2: '#262320',
-  ink: '#F4F3EF',
-  ink2: '#D6D3CC',
-  ink3: '#A5A09A',
-  ink4: '#7A7570',
-  hair: 'rgba(244, 243, 239, 0.12)',
-  hair2: 'rgba(244, 243, 239, 0.07)',
+  paper: '#121212',
+  paper2: '#1A1A1A',
+  ink: '#FFFFFF',
+  ink2: '#E0E0E0',
+  ink3: '#A0A0A0',
+  ink4: '#686868',
+  hair: 'rgba(255, 255, 255, 0.12)',
+  hair2: 'rgba(255, 255, 255, 0.07)',
 
-  accent: '#E8913A',
-  accentSoft: 'rgba(232, 145, 58, 0.20)',
-  accentInk: '#F5C88A',
+  accent: '#1DB954',
+  accentSoft: 'rgba(29, 185, 84, 0.20)',
+  accentInk: '#1DB954',
 
-  // Inverted text — for light text on dark/accent backgrounds
-  inkInverse: 'rgba(244, 243, 239, 0.60)',
-  inkInverse2: 'rgba(244, 243, 239, 0.70)',
+  inkInverse: 'rgba(255, 255, 255, 0.60)',
+  inkInverse2: 'rgba(255, 255, 255, 0.70)',
 
-  positive: '#66BBAA',
+  positive: '#1DB954',
   negative: '#EF6C6C',
 } as const;
 
-export type ColorTokens = typeof LightColors;
+export type ColorTokens = {
+  readonly paper: string;
+  readonly paper2: string;
+  readonly ink: string;
+  readonly ink2: string;
+  readonly ink3: string;
+  readonly ink4: string;
+  readonly hair: string;
+  readonly hair2: string;
+  readonly accent: string;
+  readonly accentSoft: string;
+  readonly accentInk: string;
+  readonly inkInverse: string;
+  readonly inkInverse2: string;
+  readonly positive: string;
+  readonly negative: string;
+};
 
 // Backward compatibility — maps new token names to old property names
 export const Colors = {
