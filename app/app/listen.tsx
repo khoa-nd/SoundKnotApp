@@ -22,7 +22,9 @@ import { Spacing, Radius } from '../src/constants/Spacing';
 import { fetchTranscript, formatTimestamp, findCurrentLineIndex, type TranscriptLine } from '../src/services/transcript';
 import { YoutubePlayerView, type YoutubePlayerHandle } from '../src/components/youtube/YoutubePlayerView';
 import { buildTranscriptWindow } from '../src/services/aiTutor';
+import { composeVocabulary } from '../src/services/vocabulary';
 import { useSavedPhrasesStore } from '../src/stores/savedPhrasesStore';
+import { useAiSettingsStore } from '../src/stores/aiSettingsStore';
 import { usePreprocessedTranscriptStore } from '../src/stores/preprocessedTranscriptStore';
 
 // ── Component ──
@@ -32,32 +34,44 @@ type TranscriptLineRowProps = {
   line: TranscriptLine;
   isCurrent: boolean;
   bookmarked: boolean;
-  hairColor: string;
   hair2Color: string;
   inkColor: string;
   ink4Color: string;
   accentColor: string;
   onPress: (index: number, line: TranscriptLine) => void;
-  onLongPress: (index: number) => void;
   onBookmark: (index: number, line: TranscriptLine, bookmarked: boolean) => void;
+  onWordPress: (word: string) => void;
   onLayout: (index: number, e: LayoutChangeEvent) => void;
 };
+
+// Split a transcript line into alternating word / whitespace-or-punctuation runs.
+// Words are tappable; punctuation is rendered inline as plain text.
+function splitWordTokens(text: string): { token: string; isWord: boolean }[] {
+  const out: { token: string; isWord: boolean }[] = [];
+  const regex = /[\p{L}\p{N}']+|[^\p{L}\p{N}']+/gu;
+  for (const match of text.matchAll(regex)) {
+    const token = match[0];
+    out.push({ token, isWord: /[\p{L}\p{N}]/u.test(token) });
+  }
+  return out;
+}
 
 const TranscriptLineRow = React.memo(function TranscriptLineRow({
   index,
   line,
   isCurrent,
   bookmarked,
-  hairColor,
   hair2Color,
   inkColor,
   ink4Color,
   accentColor,
   onPress,
-  onLongPress,
   onBookmark,
+  onWordPress,
   onLayout,
 }: TranscriptLineRowProps) {
+  const tokens = splitWordTokens(line.text);
+  const textColor = isCurrent ? inkColor : ink4Color;
   return (
     <TouchableOpacity
       onLayout={(e) => onLayout(index, e)}
@@ -67,8 +81,6 @@ const TranscriptLineRow = React.memo(function TranscriptLineRow({
         index === 0 && { borderTopWidth: 0 },
       ]}
       onPress={() => onPress(index, line)}
-      onLongPress={() => onLongPress(index)}
-      delayLongPress={350}
       activeOpacity={0.7}
     >
       <View style={styles.transcriptGutter}>
@@ -97,13 +109,28 @@ const TranscriptLineRow = React.memo(function TranscriptLineRow({
         style={[
           Typography.bodyLarge,
           {
-            color: isCurrent ? inkColor : ink4Color,
+            color: textColor,
             flex: 1,
             fontWeight: isCurrent ? '900' : '400',
           },
         ]}
       >
-        {line.text}
+        {tokens.map((t, i) =>
+          t.isWord ? (
+            <Text
+              key={i}
+              onPress={() => onWordPress(t.token)}
+              suppressHighlighting
+              style={{ color: textColor }}
+            >
+              {t.token}
+            </Text>
+          ) : (
+            <Text key={i} style={{ color: textColor }}>
+              {t.token}
+            </Text>
+          ),
+        )}
       </Text>
     </TouchableOpacity>
   );
@@ -140,8 +167,13 @@ export default function ListenScreen() {
   const getPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.getTranscript);
   const setPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.setTranscript);
 
-  // Long-press contextual menu
-  const [menuLineIdx, setMenuLineIdx] = useState<number | null>(null);
+  // Word-tap contextual menu
+  const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  const [vocabSaving, setVocabSaving] = useState(false);
+  const [vocabStatus, setVocabStatus] = useState<string | null>(null);
+  const aiSettings = useAiSettingsStore((s) => s.settings);
+  const loadAiSettings = useAiSettingsStore((s) => s.load);
+  const aiSettingsHydrated = useAiSettingsStore((s) => s.hydrated);
 
   // Deep-link seek (from Library): only fire once per param value
   const startSeconds = start ? Number(start) : NaN;
@@ -194,6 +226,10 @@ export default function ListenScreen() {
   useEffect(() => {
     if (!phrasesHydrated) loadPhrases();
   }, [phrasesHydrated, loadPhrases]);
+
+  useEffect(() => {
+    if (!aiSettingsHydrated) loadAiSettings();
+  }, [aiSettingsHydrated, loadAiSettings]);
 
   useEffect(() => {
     if (!ready) return;
@@ -319,9 +355,44 @@ export default function ListenScreen() {
     },
     [seekTo],
   );
-  const handleLineLongPress = useCallback((index: number) => {
-    setMenuLineIdx(index);
+  const handleWordPress = useCallback((word: string) => {
+    setSelectedWord(word);
   }, []);
+
+  const addWordToVocabulary = useCallback(
+    async (word: string) => {
+      setVocabSaving(true);
+      setVocabStatus(null);
+      try {
+        const transcriptWindow = transcript.length
+          ? buildTranscriptWindow(transcript, currentTime)
+          : undefined;
+        const formatted = await composeVocabulary(word, aiSettings, {
+          videoId: vid,
+          videoTitle: videoTitle ?? undefined,
+          videoChannel: videoChannel ?? undefined,
+          transcriptWindow,
+          selection: word,
+        });
+        await addPhrase({
+          text: formatted,
+          videoId: vid,
+          videoTitle: videoTitle ?? undefined,
+          videoChannel: videoChannel ?? undefined,
+          start: currentTime,
+          kind: 'vocabulary',
+          source: 'ai',
+        });
+        setVocabStatus(`Added "${word}" to Vocabulary`);
+      } catch (err: any) {
+        setVocabStatus(err?.message ?? 'Could not add vocabulary');
+      } finally {
+        setVocabSaving(false);
+        setTimeout(() => setVocabStatus(null), 2400);
+      }
+    },
+    [aiSettings, transcript, currentTime, vid, videoTitle, videoChannel, addPhrase],
+  );
   const handleLineBookmark = useCallback(
     (_index: number, line: TranscriptLine, bookmarked: boolean) => {
       if (bookmarked) {
@@ -453,14 +524,13 @@ export default function ListenScreen() {
                 line={line}
                 isCurrent={isCurrent}
                 bookmarked={bookmarked}
-                hairColor={colors.hair}
                 hair2Color={colors.hair2}
                 inkColor={colors.ink}
                 ink4Color={colors.ink4}
                 accentColor={colors.accent}
                 onPress={handleLinePress}
-                onLongPress={handleLineLongPress}
                 onBookmark={handleLineBookmark}
+                onWordPress={handleWordPress}
                 onLayout={onLineLayout}
               />
             );
@@ -515,28 +585,43 @@ export default function ListenScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Long-press contextual menu */}
+      {/* Word-tap contextual action strip */}
       <Modal
-        visible={menuLineIdx !== null}
+        visible={selectedWord !== null}
         transparent
         animationType="fade"
-        onRequestClose={() => setMenuLineIdx(null)}
+        onRequestClose={() => setSelectedWord(null)}
       >
-        <Pressable style={styles.menuBackdrop} onPress={() => setMenuLineIdx(null)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setSelectedWord(null)}>
           <Pressable style={[styles.menuSheet, { backgroundColor: colors.paper, borderColor: colors.hair }]}>
-            {menuLineIdx !== null && transcript[menuLineIdx] && (
+            {selectedWord !== null && (
               <>
-                <Text style={[Typography.marker, { color: colors.ink4 }]}>SELECTED</Text>
-                <Text style={[Typography.bodyMedium, { color: colors.ink, marginTop: Spacing.sm }]} numberOfLines={3}>
-                  "{transcript[menuLineIdx].text}"
+                <Text style={[Typography.marker, { color: colors.ink4 }]}>SELECTED WORD</Text>
+                <Text style={[Typography.heading, { color: colors.ink, marginTop: Spacing.sm }]}>
+                  "{selectedWord}"
                 </Text>
                 <View style={[styles.menuDivider, { backgroundColor: colors.hair }]} />
                 <TouchableOpacity
                   style={styles.menuItem}
                   onPress={() => {
-                    const sel = transcript[menuLineIdx].text;
-                    setMenuLineIdx(null);
-                    openAiTutor(sel);
+                    const w = selectedWord;
+                    setSelectedWord(null);
+                    if (w) addWordToVocabulary(w);
+                  }}
+                  disabled={vocabSaving}
+                  activeOpacity={0.6}
+                >
+                  <Ionicons name="bookmark-outline" size={18} color={colors.accent} />
+                  <Text style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}>
+                    Add to Vocabulary List
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    const w = selectedWord;
+                    setSelectedWord(null);
+                    if (w) openAiTutor(w);
                   }}
                   activeOpacity={0.6}
                 >
@@ -547,20 +632,7 @@ export default function ListenScreen() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.menuItem}
-                  onPress={() => {
-                    seekTo(transcript[menuLineIdx].start);
-                    setMenuLineIdx(null);
-                  }}
-                  activeOpacity={0.6}
-                >
-                  <Ionicons name="play-circle-outline" size={18} color={colors.ink2} />
-                  <Text style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}>
-                    Play from here
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.menuItem}
-                  onPress={() => setMenuLineIdx(null)}
+                  onPress={() => setSelectedWord(null)}
                   activeOpacity={0.6}
                 >
                   <Ionicons name="close-outline" size={18} color={colors.ink3} />
@@ -573,6 +645,21 @@ export default function ListenScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {(vocabSaving || vocabStatus) && (
+        <View style={[styles.vocabToast, { backgroundColor: colors.ink, borderColor: colors.hair }]}>
+          {vocabSaving ? (
+            <>
+              <ActivityIndicator size="small" color={colors.paper} />
+              <Text style={[Typography.bodySmall, { color: colors.paper, marginLeft: Spacing.md }]}>
+                Composing vocabulary…
+              </Text>
+            </>
+          ) : (
+            <Text style={[Typography.bodySmall, { color: colors.paper }]}>{vocabStatus}</Text>
+          )}
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -696,5 +783,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.xl,
+  },
+  vocabToast: {
+    position: 'absolute',
+    left: Spacing.screen,
+    right: Spacing.screen,
+    bottom: 96,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

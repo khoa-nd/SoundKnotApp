@@ -18,6 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import * as Speech from 'expo-speech';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
@@ -34,6 +35,14 @@ interface UiMessage extends AiMessage {
   audioMs?: number; // if this message originated from a voice recording
   pending?: boolean;
   listKind?: SavedPhraseKind;
+  quiz?: QuizQuestion[];
+}
+
+interface QuizQuestion {
+  question: string;
+  options: string[];
+  answerIndex: number;
+  explanation?: string;
 }
 
 interface PromptSuggestion {
@@ -156,6 +165,9 @@ export default function AiTutorScreen() {
         ...(audio ? { audio } : {}),
       }));
       const res = await chat({ messages: apiMessages, context, settings });
+      const lastUser = lastUserMessage(history);
+      const wantsQuiz = isQuizIntent(lastUser);
+      const quiz = wantsQuiz ? tryParseQuiz(res.reply) : undefined;
       setMessages((prev) => [
         ...prev,
         {
@@ -163,7 +175,8 @@ export default function AiTutorScreen() {
           role: 'assistant',
           content: res.reply,
           timestamp: Date.now(),
-          listKind: inferSavedKind(history),
+          listKind: wantsQuiz ? undefined : inferSavedKind(history),
+          quiz,
         },
       ]);
     } catch (err: any) {
@@ -436,26 +449,72 @@ function Bubble({
   const listItems = !isUser && message.listKind ? parseMarkdownListItems(message.content) : [];
   const [copiedIndices, setCopiedIndices] = useState<Record<number, boolean>>({});
   const [bubbleCopied, setBubbleCopied] = useState(false);
+  const [bubbleSpeaking, setBubbleSpeaking] = useState(false);
+  const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
-  return (
-    <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi, {
-      backgroundColor: isUser ? colors.ink : colors.paper2,
-      alignSelf: isUser ? 'flex-end' : 'flex-start',
-      maxWidth: listItems.length ? '100%' : '85%',
-    }, listItems.length > 0 && styles.bubbleList]}>
-      {message.audio ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
-          <Ionicons name="mic" size={16} color={isUser ? colors.paper : colors.ink2} />
-          <Text style={[Typography.bodyMedium, { color: isUser ? colors.paper : colors.ink2 }]}>
-            Voice question{message.audioMs ? ` · ${Math.round(message.audioMs / 1000)}s` : ''}
-          </Text>
-        </View>
-      ) : listItems.length > 0 && message.listKind ? (
+  useEffect(() => {
+    return () => {
+      if (bubbleSpeaking || speakingIndex !== null) {
+        Speech.stop().catch(() => {});
+      }
+    };
+  }, [bubbleSpeaking, speakingIndex]);
+
+  const speakWord = (idx: number, text: string) => {
+    if (speakingIndex === idx) {
+      Speech.stop().catch(() => {});
+      setSpeakingIndex(null);
+      return;
+    }
+    const headword = extractHeadword(text);
+    if (!headword) return;
+    setSpeakingIndex(idx);
+    Speech.speak(headword, {
+      rate: 0.9,
+      onDone: () => setSpeakingIndex((cur) => (cur === idx ? null : cur)),
+      onStopped: () => setSpeakingIndex((cur) => (cur === idx ? null : cur)),
+      onError: () => setSpeakingIndex((cur) => (cur === idx ? null : cur)),
+    });
+  };
+
+  const toggleSpeak = () => {
+    if (bubbleSpeaking) {
+      Speech.stop().catch(() => {});
+      setBubbleSpeaking(false);
+      return;
+    }
+    const cleanText = cleanMessageForCopy(message.content);
+    if (!cleanText) return;
+    setBubbleSpeaking(true);
+    Speech.speak(cleanText, {
+      rate: 1.0,
+      onDone: () => setBubbleSpeaking(false),
+      onStopped: () => setBubbleSpeaking(false),
+      onError: () => setBubbleSpeaking(false),
+    });
+  };
+
+  const hasQuiz = !isUser && message.quiz && message.quiz.length > 0;
+  const hasList = listItems.length > 0 && !!message.listKind;
+
+  if (hasQuiz) {
+    return (
+      <View style={styles.quizWrap}>
+        <QuizSlider quiz={message.quiz!} colors={colors} />
+      </View>
+    );
+  }
+
+  if (hasList) {
+    return (
+      <View style={styles.quizWrap}>
         <ScrollView
           horizontal
           style={styles.generatedSlider}
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.generatedList}
+          contentContainerStyle={styles.quizSliderContent}
+          snapToInterval={280 + Spacing.lg}
+          decelerationRate="fast"
         >
           {listItems.map((item, index) => {
             const key = savedItemKey(item, message.listKind!);
@@ -464,9 +523,10 @@ function Bubble({
             const isCopied = !!copiedIndices[index];
 
             const handleCopy = () => {
+              const showExample = !!parsed.example && message.listKind !== 'phrase';
               const textToCopy = parsed.explanation
-                ? `${parsed.title} - ${parsed.explanation}${parsed.example ? ` Example: ${parsed.example}` : ''}`
-                : `${parsed.title}${parsed.example ? ` Example: ${parsed.example}` : ''}`;
+                ? `${parsed.title} - ${parsed.explanation}${showExample ? ` Example: ${parsed.example}` : ''}`
+                : `${parsed.title}${showExample ? ` Example: ${parsed.example}` : ''}`;
               copyToClipboard(textToCopy);
               setCopiedIndices((prev) => ({ ...prev, [index]: true }));
               setTimeout(() => {
@@ -476,36 +536,46 @@ function Bubble({
 
             return (
               <View key={`${index}-${item.slice(0, 16)}`} style={[styles.generatedListItem, { borderColor: colors.hair, backgroundColor: colors.paper }]}>
-                <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>#{index + 1}</Text>
-                <View style={styles.generatedItemText}>
+                <View style={{ gap: Spacing.sm }}>
+                  <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>#{index + 1}</Text>
                   <Text style={[styles.generatedTitle, { color: colors.ink }]}>{parsed.title}</Text>
                   {!!parsed.explanation && (
                     <Text style={[styles.generatedExplanation, { color: colors.ink2 }]}>{parsed.explanation}</Text>
                   )}
-                  {!!parsed.example && (
-                    <Text style={[styles.generatedExample, { color: colors.ink3 }]}>{parsed.example}</Text>
+                  {!!parsed.example && message.listKind !== 'phrase' && (
+                    <Text style={[styles.generatedExample, { color: colors.ink3 }]}>
+                      <Text style={{ fontWeight: '700', fontStyle: 'normal' }}>Example: </Text>
+                      {parsed.example}
+                    </Text>
                   )}
                 </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.md }}>
+                <View style={styles.generatedActions}>
                   <TouchableOpacity
                     onPress={handleCopy}
-                    style={[
-                      styles.addItemBtn,
-                      { borderColor: colors.hair, backgroundColor: colors.paper },
-                    ]}
+                    style={[styles.addItemBtn, { borderColor: colors.hair, backgroundColor: colors.paper }]}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel="Copy item"
                   >
-                    <Ionicons name={isCopied ? "checkmark" : "copy-outline"} size={16} color={isCopied ? colors.positive : colors.ink} />
+                    <Ionicons name={isCopied ? 'checkmark' : 'copy-outline'} size={16} color={isCopied ? colors.positive : colors.ink} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => speakWord(index, parsed.title)}
+                    style={[styles.addItemBtn, { borderColor: colors.hair, backgroundColor: colors.paper }]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel={speakingIndex === index ? 'Stop speaking' : 'Speak word'}
+                  >
+                    <Ionicons
+                      name={speakingIndex === index ? 'stop-circle-outline' : 'volume-high-outline'}
+                      size={16}
+                      color={speakingIndex === index ? colors.accent : colors.ink}
+                    />
                   </TouchableOpacity>
                   <TouchableOpacity
                     onPress={() => onSaveGeneratedItem(stripMarkdown(item), message.listKind!)}
                     disabled={saved}
-                    style={[
-                      styles.addItemBtn,
-                      { borderColor: colors.hair, backgroundColor: saved ? colors.ink : colors.paper },
-                    ]}
+                    style={[styles.addItemBtn, { borderColor: colors.hair, backgroundColor: saved ? colors.ink : colors.paper }]}
                     activeOpacity={0.7}
                     accessibilityRole="button"
                     accessibilityLabel={saved ? 'Saved' : 'Save item'}
@@ -517,6 +587,23 @@ function Bubble({
             );
           })}
         </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAi, {
+      backgroundColor: isUser ? colors.ink : colors.paper2,
+      alignSelf: isUser ? 'flex-end' : 'flex-start',
+      maxWidth: '85%',
+    }]}>
+      {message.audio ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.md }}>
+          <Ionicons name="mic" size={16} color={isUser ? colors.paper : colors.ink2} />
+          <Text style={[Typography.bodyMedium, { color: isUser ? colors.paper : colors.ink2 }]}>
+            Voice question{message.audioMs ? ` · ${Math.round(message.audioMs / 1000)}s` : ''}
+          </Text>
+        </View>
       ) : (
         <View style={{ gap: Spacing.sm }}>
           <FormattedMessageText
@@ -525,7 +612,7 @@ function Bubble({
             colors={colors}
           />
           {!isUser && (
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4, gap: Spacing.xs }}>
               <TouchableOpacity
                 onPress={() => {
                   const cleanText = cleanMessageForCopy(message.content);
@@ -540,11 +627,99 @@ function Bubble({
               >
                 <Ionicons name={bubbleCopied ? "checkmark" : "copy-outline"} size={18} color={bubbleCopied ? colors.positive : colors.ink} />
               </TouchableOpacity>
+              <TouchableOpacity
+                onPress={toggleSpeak}
+                activeOpacity={0.7}
+                style={{ opacity: 0.65, padding: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={bubbleSpeaking ? 'Stop speaking' : 'Speak response'}
+              >
+                <Ionicons
+                  name={bubbleSpeaking ? 'stop-circle-outline' : 'volume-high-outline'}
+                  size={18}
+                  color={bubbleSpeaking ? colors.accent : colors.ink}
+                />
+              </TouchableOpacity>
             </View>
           )}
         </View>
       )}
     </View>
+  );
+}
+
+function QuizSlider({ quiz, colors }: { quiz: QuizQuestion[]; colors: any }) {
+  const [picked, setPicked] = useState<Record<number, number>>({});
+
+  return (
+    <ScrollView
+      horizontal
+      style={styles.quizSlider}
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.quizSliderContent}
+      pagingEnabled={false}
+      decelerationRate="fast"
+      snapToInterval={300 + Spacing.lg}
+      snapToAlignment="start"
+    >
+      {quiz.map((q, qi) => {
+        const choice = picked[qi];
+        const answered = choice !== undefined;
+        return (
+          <View
+            key={qi}
+            style={[styles.quizCard, { borderColor: colors.hair, backgroundColor: colors.paper }]}
+          >
+            <Text style={[styles.generatedIndex, { color: colors.ink4 }]}>QUESTION {qi + 1} / {quiz.length}</Text>
+            <Text style={[styles.quizQuestion, { color: colors.ink }]} numberOfLines={4}>{q.question}</Text>
+            <View style={styles.quizOptions}>
+              {q.options.map((opt, oi) => {
+                const isCorrect = oi === q.answerIndex;
+                const isPicked = choice === oi;
+                let bg = colors.paper2;
+                let border = colors.hair;
+                let textColor = colors.ink;
+                if (answered) {
+                  if (isCorrect) {
+                    bg = colors.accentSoft;
+                    border = colors.positive;
+                    textColor = colors.positive;
+                  } else if (isPicked) {
+                    bg = 'rgba(229,57,53,0.10)';
+                    border = colors.negative;
+                    textColor = colors.negative;
+                  }
+                }
+                const cleanOpt = stripOptionPrefix(opt);
+                return (
+                  <TouchableOpacity
+                    key={oi}
+                    onPress={() => {
+                      if (!answered) setPicked((p) => ({ ...p, [qi]: oi }));
+                    }}
+                    disabled={answered}
+                    activeOpacity={0.75}
+                    style={[styles.quizOption, { backgroundColor: bg, borderColor: border }]}
+                  >
+                    <Text style={[styles.quizOptionLabel, { color: textColor }]}>
+                      {String.fromCharCode(65 + oi)}
+                    </Text>
+                    <Text style={[styles.quizOptionText, { color: textColor }]} numberOfLines={2}>
+                      {cleanOpt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {answered && q.explanation && (
+              <Text style={[styles.quizExplanation, { color: colors.ink3 }]} numberOfLines={3}>
+                {q.explanation}
+              </Text>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
   );
 }
 
@@ -974,6 +1149,24 @@ function buildPromptSuggestions(): PromptSuggestion[] {
       align: 'right',
     },
     {
+      label: 'Do a quiz',
+      prompt:
+        [
+          'Create a comprehension quiz based on this video.',
+          'Choose the number of questions to match the video so the learner can verify their understanding:',
+          '- Short / sparse content: 5 questions',
+          '- Medium content: 8–12 questions',
+          '- Long or dense content: up to 20 questions',
+          'Hard cap: never return more than 20 questions and never fewer than 5.',
+          'Each question must have EXACTLY 4 answer options. Each option is just the option text — do NOT prefix the option with a letter or label like "A.", "B)", "C:".',
+          'Return ONLY valid JSON with this exact shape, no surrounding text, no markdown fences:',
+          '{"questions":[{"q":"<question>","options":["<opt1>","<opt2>","<opt3>","<opt4>"],"answer":0,"explanation":"<1 short sentence>"}]}',
+          'Rules: answer is the zero-based index of the correct option. Keep each question concise (fits in 4 lines). Keep each option concise (fits in 2 lines). Avoid trick questions. Spread questions across the video so the user revisits different sections.',
+        ].join(' '),
+      wide: true,
+      align: 'right',
+    },
+    {
       label: 'List of keywords',
       prompt:
         [
@@ -1011,6 +1204,60 @@ function lastUserMessage(messages: UiMessage[]): string {
     if (messages[i].role === 'user') return messages[i].content.toLowerCase();
   }
   return '';
+}
+
+function isQuizIntent(userMessage: string): boolean {
+  return /\bquiz\b|multiple[\s-]?choice|comprehension\s+quiz/i.test(userMessage);
+}
+
+function stripOptionPrefix(opt: string): string {
+  // Removes a leading "A.", "B)", "C:" etc. so the option label isn't doubled.
+  return opt.replace(/^\s*[A-Da-d]\s*[.)\]:]\s*/, '').trim();
+}
+
+// Strip IPA "/.../", "(part of speech)", and stray markdown so TTS only speaks the headword.
+function extractHeadword(title: string): string {
+  return title
+    .replace(/\*\*/g, '')
+    .replace(/\/[^/]*\//g, '')         // remove /IPA/
+    .replace(/\([^)]*\)/g, '')         // remove (noun) / (verb) / etc.
+    .replace(/[—–\-]+\s*$/g, '')       // trailing dashes
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function tryParseQuiz(reply: string): QuizQuestion[] | undefined {
+  if (!reply) return undefined;
+  // Strip optional ```json fences and extract the first JSON object in the reply.
+  const stripped = reply
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*$/g, '')
+    .trim();
+  const firstBrace = stripped.indexOf('{');
+  const lastBrace = stripped.lastIndexOf('}');
+  if (firstBrace < 0 || lastBrace <= firstBrace) return undefined;
+  const slice = stripped.slice(firstBrace, lastBrace + 1);
+  try {
+    const parsed = JSON.parse(slice);
+    const rawList = Array.isArray(parsed?.questions) ? parsed.questions : null;
+    if (!rawList) return undefined;
+    const cards: QuizQuestion[] = [];
+    for (const q of rawList) {
+      if (!q || typeof q.q !== 'string' || !Array.isArray(q.options)) continue;
+      const options: string[] = q.options.filter((o: unknown) => typeof o === 'string').slice(0, 4);
+      if (options.length !== 4) continue;
+      const answerIndex = Number.isInteger(q.answer) ? q.answer : 0;
+      cards.push({
+        question: q.q.trim(),
+        options,
+        answerIndex: Math.max(0, Math.min(3, answerIndex)),
+        explanation: typeof q.explanation === 'string' ? q.explanation.trim() : undefined,
+      });
+    }
+    return cards.length ? cards.slice(0, 20) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function buildFollowUpSuggestions(context: AiContext, messages: UiMessage[]): PromptSuggestion[] {
@@ -1182,25 +1429,49 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.xl,
   },
   generatedSlider: {
-    height: 250,
-    maxHeight: 250,
     alignSelf: 'stretch',
   },
   generatedListItem: {
-    width: 270,
-    height: 230,
-    gap: Spacing.md,
+    width: 280,
+    minHeight: 260,
     borderWidth: 1,
     borderRadius: Radius.xxxl,
     padding: Spacing.xl,
+    flexDirection: 'column',
+    justifyContent: 'space-between',
+    gap: Spacing.lg,
+  },
+  quizWrap: {
+    alignSelf: 'stretch',
+    marginHorizontal: -30,
+  },
+  quizSlider: {
+    height: 500,
+  },
+  quizSliderContent: {
+    gap: Spacing.lg,
+    paddingHorizontal: 30,
+    alignItems: 'stretch',
   },
   generatedIndex: {
     ...Typography.monoSmall,
     alignSelf: 'flex-start',
+    marginBottom: Spacing.sm,
   },
   generatedItemText: {
     flex: 1,
     gap: Spacing.sm,
+    overflow: 'hidden',
+    minHeight: 0,
+  },
+  generatedActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: Spacing.md,
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.08)',
   },
   generatedTitle: {
     fontFamily: Typography.headingSmall.fontFamily,
@@ -1226,7 +1497,55 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'flex-end',
+  },
+  quizCard: {
+    width: 300,
+    height: 480,
+    borderWidth: 1,
+    borderRadius: Radius.xxxl,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  quizQuestion: {
+    fontFamily: Typography.headingSmall.fontFamily,
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '700',
+    minHeight: 88, // 4 lines × 22 lineHeight
+  },
+  quizOptions: {
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  quizOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    minHeight: 56, // padding + 2 lines × 18 lineHeight
+  },
+  quizOptionLabel: {
+    fontFamily: Typography.monoSmall.fontFamily,
+    fontSize: 13,
+    fontWeight: '700',
+    width: 16,
+  },
+  quizOptionText: {
+    flex: 1,
+    fontFamily: Typography.bodySmall.fontFamily,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  quizExplanation: {
+    fontFamily: Typography.bodySmall.fontFamily,
+    fontSize: 12,
+    lineHeight: 17,
+    fontStyle: 'italic',
+    marginTop: Spacing.sm,
   },
   bubble: {
     maxWidth: '85%',
