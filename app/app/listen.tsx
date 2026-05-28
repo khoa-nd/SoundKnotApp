@@ -41,6 +41,7 @@ type TranscriptLineRowProps = {
   onPress: (index: number, line: TranscriptLine) => void;
   onBookmark: (index: number, line: TranscriptLine, bookmarked: boolean) => void;
   onWordPress: (word: string) => void;
+  onLineLongPress: (lineIdx: number) => void;
   onLayout: (index: number, e: LayoutChangeEvent) => void;
 };
 
@@ -68,6 +69,7 @@ const TranscriptLineRow = React.memo(function TranscriptLineRow({
   onPress,
   onBookmark,
   onWordPress,
+  onLineLongPress,
   onLayout,
 }: TranscriptLineRowProps) {
   const tokens = splitWordTokens(line.text);
@@ -81,6 +83,8 @@ const TranscriptLineRow = React.memo(function TranscriptLineRow({
         index === 0 && { borderTopWidth: 0 },
       ]}
       onPress={() => onPress(index, line)}
+      onLongPress={() => onLineLongPress(index)}
+      delayLongPress={300}
       activeOpacity={0.7}
     >
       <View style={styles.transcriptGutter}>
@@ -120,6 +124,7 @@ const TranscriptLineRow = React.memo(function TranscriptLineRow({
             <Text
               key={i}
               onPress={() => onWordPress(t.token)}
+              onLongPress={() => onLineLongPress(index)}
               suppressHighlighting
               style={{ color: textColor }}
             >
@@ -167,8 +172,11 @@ export default function ListenScreen() {
   const getPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.getTranscript);
   const setPreprocessedTranscript = usePreprocessedTranscriptStore((s) => s.setTranscript);
 
-  // Word-tap contextual menu
+  // Single-word tap → action sheet
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
+  // Long-press a line → phrase composer modal (tap consecutive words to build a phrase)
+  const [phraseLineIdx, setPhraseLineIdx] = useState<number | null>(null);
+  const [phraseRange, setPhraseRange] = useState<{ start: number; end: number } | null>(null);
   const [vocabSaving, setVocabSaving] = useState(false);
   const [vocabStatus, setVocabStatus] = useState<string | null>(null);
   const aiSettings = useAiSettingsStore((s) => s.settings);
@@ -359,8 +367,59 @@ export default function ListenScreen() {
     setSelectedWord(word);
   }, []);
 
+  // Extract the substring of a transcript line corresponding to a word-index range.
+  const wordRangeText = useCallback((lineIdx: number, lo: number, hi: number): string => {
+    const line = transcript[lineIdx];
+    if (!line) return '';
+    const tokens = splitWordTokens(line.text);
+    let wordCursor = 0;
+    let firstTokenIdx = -1;
+    let lastTokenIdx = -1;
+    for (let i = 0; i < tokens.length; i++) {
+      if (!tokens[i].isWord) continue;
+      if (wordCursor === lo) firstTokenIdx = i;
+      if (wordCursor === hi) lastTokenIdx = i;
+      wordCursor++;
+    }
+    if (firstTokenIdx < 0 || lastTokenIdx < 0) return '';
+    return tokens.slice(firstTokenIdx, lastTokenIdx + 1).map((t) => t.token).join('').trim();
+  }, [transcript]);
+
+  const handleLineLongPress = useCallback((lineIdx: number) => {
+    setPhraseLineIdx(lineIdx);
+    setPhraseRange(null);
+  }, []);
+
+  const handlePhraseWordTap = useCallback((wordIdx: number) => {
+    setPhraseRange((prev) => {
+      if (!prev) return { start: wordIdx, end: wordIdx };
+      // Tap on a word inside the range → trim selection to just that word.
+      const lo = Math.min(prev.start, prev.end);
+      const hi = Math.max(prev.start, prev.end);
+      if (wordIdx >= lo && wordIdx <= hi && lo !== hi) return { start: wordIdx, end: wordIdx };
+      // Otherwise extend toward the tapped word.
+      return { start: prev.start, end: wordIdx };
+    });
+  }, []);
+
+  const confirmPhraseSelection = useCallback(() => {
+    if (phraseLineIdx == null || !phraseRange) return;
+    const lo = Math.min(phraseRange.start, phraseRange.end);
+    const hi = Math.max(phraseRange.start, phraseRange.end);
+    const text = wordRangeText(phraseLineIdx, lo, hi);
+    setPhraseLineIdx(null);
+    setPhraseRange(null);
+    if (text) setSelectedWord(text);
+  }, [phraseLineIdx, phraseRange, wordRangeText]);
+
+  const cancelPhraseSelection = useCallback(() => {
+    setPhraseLineIdx(null);
+    setPhraseRange(null);
+  }, []);
+
   const addWordToVocabulary = useCallback(
     async (word: string) => {
+      const isPhrase = word.includes(' ');
       setVocabSaving(true);
       setVocabStatus(null);
       try {
@@ -380,12 +439,12 @@ export default function ListenScreen() {
           videoTitle: videoTitle ?? undefined,
           videoChannel: videoChannel ?? undefined,
           start: currentTime,
-          kind: 'vocabulary',
+          kind: isPhrase ? 'phrase' : 'vocabulary',
           source: 'ai',
         });
-        setVocabStatus(`Added "${word}" to Vocabulary`);
+        setVocabStatus(`Added "${word}" to ${isPhrase ? 'Phrases' : 'Vocabulary'}`);
       } catch (err: any) {
-        setVocabStatus(err?.message ?? 'Could not add vocabulary');
+        setVocabStatus(err?.message ?? 'Could not add');
       } finally {
         setVocabSaving(false);
         setTimeout(() => setVocabStatus(null), 2400);
@@ -531,6 +590,7 @@ export default function ListenScreen() {
                 onPress={handleLinePress}
                 onBookmark={handleLineBookmark}
                 onWordPress={handleWordPress}
+                onLineLongPress={handleLineLongPress}
                 onLayout={onLineLayout}
               />
             );
@@ -596,8 +656,10 @@ export default function ListenScreen() {
           <Pressable style={[styles.menuSheet, { backgroundColor: colors.paper, borderColor: colors.hair }]}>
             {selectedWord !== null && (
               <>
-                <Text style={[Typography.marker, { color: colors.ink4 }]}>SELECTED WORD</Text>
-                <Text style={[Typography.heading, { color: colors.ink, marginTop: Spacing.sm }]}>
+                <Text style={[Typography.marker, { color: colors.ink4 }]}>
+                  {selectedWord.includes(' ') ? 'SELECTED PHRASE' : 'SELECTED WORD'}
+                </Text>
+                <Text style={[Typography.heading, { color: colors.ink, marginTop: Spacing.sm }]} numberOfLines={3}>
                   "{selectedWord}"
                 </Text>
                 <View style={[styles.menuDivider, { backgroundColor: colors.hair }]} />
@@ -613,7 +675,7 @@ export default function ListenScreen() {
                 >
                   <Ionicons name="bookmark-outline" size={18} color={colors.accent} />
                   <Text style={[Typography.bodyMedium, { color: colors.ink, marginLeft: Spacing.lg }]}>
-                    Add to Vocabulary List
+                    {selectedWord && selectedWord.includes(' ') ? 'Add to Phrase List' : 'Add to Vocabulary List'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -644,6 +706,137 @@ export default function ListenScreen() {
             )}
           </Pressable>
         </Pressable>
+      </Modal>
+
+      {/* Phrase composer — long-press a line to pick a range of words */}
+      <Modal
+        visible={phraseLineIdx !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={cancelPhraseSelection}
+      >
+        <View style={styles.phraseBackdrop}>
+          <View style={[styles.phraseSheet, { backgroundColor: colors.paper, borderColor: colors.hair }]}>
+            <View style={styles.phraseHeader}>
+              <Text style={[Typography.marker, { color: colors.ink4 }]}>SELECT A PHRASE</Text>
+              <TouchableOpacity onPress={cancelPhraseSelection} hitSlop={10}>
+                <Ionicons name="close" size={22} color={colors.ink3} />
+              </TouchableOpacity>
+            </View>
+            <Text style={[Typography.bodySmall, { color: colors.ink3, marginTop: Spacing.xs }]}>
+              Tap the first word, then tap the last word.
+            </Text>
+
+            <Text style={[styles.phraseSentence, { color: colors.ink }]}>
+              {phraseLineIdx !== null && transcript[phraseLineIdx]
+                ? (() => {
+                    const tokens = splitWordTokens(transcript[phraseLineIdx].text);
+                    let wordCursor = 0;
+                    const lo = phraseRange ? Math.min(phraseRange.start, phraseRange.end) : -1;
+                    const hi = phraseRange ? Math.max(phraseRange.start, phraseRange.end) : -1;
+                    return tokens.map((t, i) => {
+                      if (!t.isWord) {
+                        // Highlight the joining space too when both sides are selected,
+                        // so the underline reads as one continuous phrase.
+                        const prevToken = tokens[i - 1];
+                        const nextToken = tokens[i + 1];
+                        let prevWordIdx = -1;
+                        let nextWordIdx = -1;
+                        let c = 0;
+                        for (let j = 0; j < i; j++) if (tokens[j].isWord) c++;
+                        prevWordIdx = prevToken?.isWord ? c - 1 : -1;
+                        nextWordIdx = nextToken?.isWord ? c : -1;
+                        const joinSelected =
+                          prevWordIdx >= 0 &&
+                          nextWordIdx >= 0 &&
+                          prevWordIdx >= lo &&
+                          prevWordIdx <= hi &&
+                          nextWordIdx >= lo &&
+                          nextWordIdx <= hi;
+                        return (
+                          <Text key={i} style={joinSelected ? { backgroundColor: colors.accentSoft } : undefined}>
+                            {t.token}
+                          </Text>
+                        );
+                      }
+                      const wIdx = wordCursor++;
+                      const selected = phraseRange != null && wIdx >= lo && wIdx <= hi;
+                      return (
+                        <Text
+                          key={i}
+                          onPress={() => handlePhraseWordTap(wIdx)}
+                          suppressHighlighting
+                          style={
+                            selected
+                              ? { color: colors.accent, backgroundColor: colors.accentSoft, fontWeight: '700' }
+                              : undefined
+                          }
+                        >
+                          {t.token}
+                        </Text>
+                      );
+                    });
+                  })()
+                : null}
+            </Text>
+
+            {phraseRange != null && (
+              <View style={[styles.phrasePreview, { borderColor: colors.hair, backgroundColor: colors.paper2 }]}>
+                <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>SELECTION</Text>
+                <Text style={[Typography.bodyMedium, { color: colors.ink, marginTop: Spacing.xs }]} numberOfLines={3}>
+                  "{phraseLineIdx !== null
+                    ? wordRangeText(
+                        phraseLineIdx,
+                        Math.min(phraseRange.start, phraseRange.end),
+                        Math.max(phraseRange.start, phraseRange.end),
+                      )
+                    : ''}"
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.phraseActions}>
+              <TouchableOpacity
+                style={[styles.phraseActionBtn, { borderColor: colors.hair }]}
+                onPress={() => {
+                  if (phraseLineIdx == null || !phraseRange) return;
+                  const lo = Math.min(phraseRange.start, phraseRange.end);
+                  const hi = Math.max(phraseRange.start, phraseRange.end);
+                  const text = wordRangeText(phraseLineIdx, lo, hi);
+                  setPhraseLineIdx(null);
+                  setPhraseRange(null);
+                  if (text) openAiTutor(text);
+                }}
+                disabled={!phraseRange}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="sparkles-outline" size={18} color={phraseRange ? colors.accent : colors.ink4} />
+                <Text
+                  style={[
+                    Typography.button,
+                    { color: phraseRange ? colors.ink : colors.ink4, marginLeft: Spacing.sm },
+                  ]}
+                >
+                  Ask AI Tutor
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.phraseActionBtnPrimary,
+                  { backgroundColor: phraseRange ? colors.accent : colors.ink4 },
+                ]}
+                onPress={confirmPhraseSelection}
+                disabled={!phraseRange}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="bookmark-outline" size={18} color={colors.paper} />
+                <Text style={[Typography.button, { color: colors.paper, marginLeft: Spacing.sm }]}>
+                  Add to List
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {(vocabSaving || vocabStatus) && (
@@ -726,6 +919,60 @@ const styles = StyleSheet.create({
   bookmarkBtn: {
     paddingVertical: 2,
     paddingRight: 4,
+  },
+  phraseBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    justifyContent: 'flex-end',
+  },
+  phraseSheet: {
+    borderTopLeftRadius: Radius.xxxl,
+    borderTopRightRadius: Radius.xxxl,
+    borderWidth: 1,
+    padding: Spacing.xxl,
+    paddingBottom: 36,
+    gap: Spacing.md,
+  },
+  phraseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  phraseSentence: {
+    fontFamily: Typography.bodyLarge.fontFamily,
+    fontSize: 18,
+    lineHeight: 28,
+    letterSpacing: Typography.bodyLarge.letterSpacing,
+    marginTop: Spacing.lg,
+    fontWeight: '500',
+  },
+  phrasePreview: {
+    marginTop: Spacing.lg,
+    borderWidth: 1,
+    borderRadius: Radius.xl,
+    padding: Spacing.lg,
+  },
+  phraseActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginTop: Spacing.lg,
+  },
+  phraseActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: Radius.pill,
+    borderWidth: 1,
+  },
+  phraseActionBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: Radius.pill,
   },
 
   // ── Bottom ──

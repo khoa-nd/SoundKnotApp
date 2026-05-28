@@ -570,7 +570,7 @@
 │   ├── _layout.tsx               # Root Stack navigator + font loading + splash
 │   ├── index.tsx                 # Entry redirect with auth check
 │   ├── login.tsx                 # Login / register screen
-│   ├── listen.tsx                # Listen screen (YouTube + clipped transcript box + bookmarks)
+│   ├── listen.tsx                # Listen screen (YouTube + transcript + word-tap vocab + phrase composer)
 │   ├── dictation.tsx             # Dictation screen (recall + check)
 │   ├── finished.tsx              # Session complete screen (saves session to API)
 │   ├── ai-tutor.tsx              # AI tutor chat (fullScreenModal, KAV-wrapped)
@@ -625,6 +625,7 @@
 │   │   ├── sessions.ts           # POST /sessions
 │   │   ├── transcript.ts         # YouTube transcript fetcher (raw + local merger fallback)
 │   │   ├── preprocess.ts         # Video link preprocessing pipeline
+│   │   ├── vocabulary.ts         # Wraps aiTutor.chat() to format a word/phrase as a 3-line vocab card
 │   │   ├── ai.ts                 # AI companion service (legacy)
 │   │   ├── content.ts            # Content library API (legacy)
 │   │   └── voice.ts              # Voice command processing (legacy)
@@ -1060,6 +1061,7 @@ interface SavedPhrase {
     <tr><td><code>sessionService</code> (<code>sessions.ts</code>)</td><td>POST /sessions</td><td><code>sessionStore.saveSession</code> → <code>finished.tsx</code></td></tr>
     <tr><td><code>transcript</code> (<code>transcript.ts</code>)</td><td>YouTube InnerTube via <code>youtube-transcript</code>; local soft-boundary split; optional <code>/v1/resegment</code> fallback</td><td><code>listen.tsx</code>, <code>preprocess.ts</code>, transcript review runner</td></tr>
     <tr><td><code>preprocessService</code> (<code>preprocess.ts</code>)</td><td>Local pipeline + POST /ai/split-transcript</td><td><code>home.tsx</code></td></tr>
+    <tr><td><code>vocabulary</code> (<code>vocabulary.ts</code>)</td><td><code>composeVocabulary(word, settings, context)</code> — wraps <code>aiTutor.chat()</code> with a strict 3-line prompt to produce <code>**word** /IPA/ (POS)</code> / explanation / <code>Example:</code></td><td><code>listen.tsx</code> (word-tap + phrase composer)</td></tr>
   </tbody>
 </table>
 
@@ -1220,6 +1222,72 @@ npm run test:transcript -w app -- --json --url "https://www.youtube.com/watch?v=
   <li>The transcript ScrollView is wrapped in a <code>transcriptBox</code> View with <code>overflow: 'hidden'</code> and a top hairline border, so scrolled content is clipped at a clear boundary below the video player</li>
   <li>The <code>Transcript</code> label and <code>N LINES</code> counter render in a fixed <code>transcriptHeaderFixed</code> row above the boundary so they remain visible while the transcript scrolls</li>
   <li><strong>Anti-pattern avoided</strong>: never use a ScrollView ref callback for imperative scroll — it fires every render. Always use <code>useRef</code> + <code>useEffect</code> keyed on the tracked index.</li>
+</ul>
+
+<h3>10.6a Word &amp; Phrase Selection (<code>app/listen.tsx</code>)</h3>
+<p>Each transcript line body is a single inline <code>&lt;Text&gt;</code> whose children are alternating word / non-word tokens produced by <code>splitWordTokens</code>:</p>
+<pre><code>function splitWordTokens(text) {
+  // Unicode-aware regex: matches runs of letters/digits/apostrophes as words,
+  // and runs of everything else as whitespace/punctuation tokens.
+  const regex = /[\p{L}\p{N}']+|[^\p{L}\p{N}']+/gu;
+  ...
+}</code></pre>
+<p>Word tokens render as inline <code>&lt;Text onPress&gt;</code> children with <code>suppressHighlighting</code>; non-word tokens render as plain Text so the sentence keeps native typography (kerning, spacing, line-wrap).</p>
+
+<h4>Single-word tap → action sheet</h4>
+<ul>
+  <li>Tapping a word fires <code>onWordPress(token)</code>, which sets <code>selectedWord</code> and opens a bottom modal with two actions: <strong>Add to Vocabulary List</strong> and <strong>Ask AI Tutor</strong>.</li>
+  <li>"Add" calls <code>composeVocabulary(word, aiSettings, context)</code> — the new service in <code>src/services/vocabulary.ts</code>. It wraps <code>aiTutor.chat()</code> with a strict 3-line prompt: <code>**word** /IPA/ (POS)</code> / explanation / <code>Example: "..."</code>. The response is saved verbatim to <code>savedPhrasesStore</code> with <code>kind: 'vocabulary'</code> and <code>source: 'ai'</code>.</li>
+</ul>
+
+<h4>Multi-word phrase composer (long-press → modal)</h4>
+<ul>
+  <li><strong>Why a modal:</strong> React Native does not expose per-glyph hit testing inside inline Text, so iOS-style drag-handle range selection is not implementable in pure JS. An earlier per-word <code>Pressable</code> + <code>PanResponder</code> attempt broke line wrapping and auto-scroll. The modal is the chosen workaround.</li>
+  <li>Long-press a row (<code>delayLongPress: 300</code>) — including on a word itself, because the same <code>onLongPress</code> handler is attached to each per-word inline <code>&lt;Text&gt;</code> so the parent <code>TouchableOpacity</code>'s long-press doesn't get swallowed by the inline word's <code>onPress</code>.</li>
+  <li>Composer renders the line as ONE continuous <code>&lt;Text&gt;</code> at <code>fontSize: 18</code>, <code>lineHeight: 28</code>, with each word as an inline <code>&lt;Text onPress&gt;</code>. Tap first word → highlights. Tap last word → range fills inclusively.</li>
+  <li><strong>Seamless highlight:</strong> selected words use <code>backgroundColor: accentSoft</code> + <code>color: accent</code> + <code>fontWeight: 700</code>. The whitespace/punctuation tokens between two selected words also pick up <code>backgroundColor: accentSoft</code> so the highlight reads as one continuous underline rather than disconnected pills.</li>
+  <li>Tapping a word inside the existing range trims selection to just that word (correction affordance).</li>
+  <li>Footer has two pill buttons: <strong>Ask AI Tutor</strong> (ghost) prefills the tutor with the phrase; <strong>Add to List</strong> (primary accent) runs <code>composeVocabulary</code> and saves with <code>kind: 'phrase'</code> for multi-word selections (single-word selections still use <code>kind: 'vocabulary'</code>).</li>
+</ul>
+
+<h4>Status toast</h4>
+<p>A <code>vocabToast</code> at the bottom of the Listen screen shows an <code>ActivityIndicator</code> + "Composing vocabulary…" while the AI is running, then "Added \"X\" to Vocabulary" / "to Phrases" for 2.4 seconds, then disappears. Errors land in the same toast as a plain message.</p>
+
+<h3>10.6b AI Tutor — Speak, Quiz, list/quiz layout (<code>app/ai-tutor.tsx</code>)</h3>
+
+<h4>Speak AI response (<code>expo-speech</code>)</h4>
+<ul>
+  <li>Each AI bubble shows a <code>volume-high-outline</code> button next to the existing copy button. Tapping it strips markdown via <code>cleanMessageForCopy</code> and calls <code>Speech.speak(text, { rate: 1.0, onDone, onStopped, onError })</code>. Icon flips to <code>stop-circle-outline</code> (accent color) while speaking; re-tap stops via <code>Speech.stop()</code>.</li>
+  <li>Cleanup: the bubble's <code>useEffect</code> calls <code>Speech.stop()</code> on unmount to avoid orphaned audio when the user scrolls a long bubble out of view.</li>
+  <li>Keyword/phrase slider cards also have a per-card speak button. To avoid pronouncing IPA and part-of-speech metadata, the title runs through <code>extractHeadword</code> which strips <code>**</code>, <code>/IPA/</code>, and <code>(noun)</code> patterns. Rate dropped to 0.9 for clarity. Single <code>speakingIndex</code> ensures only one card speaks at a time.</li>
+</ul>
+
+<h4>List / quiz layout — escape the bubble shell</h4>
+<div class="tradeoff">
+  Horizontal <code>ScrollView</code> inside a flex-shrunk <code>Bubble</code> shell (<code>alignSelf: 'flex-start'</code>) does not constrain its width — the slider tries to render all cards in one row stretching beyond the screen and gets clipped, showing only the last card. Both the keyword/phrase list and the quiz now bypass the bubble entirely and render in a <code>quizWrap</code> container with <code>marginHorizontal: -30</code> that cancels the chat scroll's 30px padding, giving the slider full screen width.
+</div>
+<ul>
+  <li>Cards use <code>snapToInterval={cardWidth + Spacing.lg}</code> and <code>decelerationRate: 'fast'</code> for clean page-style scrolling.</li>
+  <li>Slider <code>contentContainerStyle</code> has <code>alignItems: 'stretch'</code> so all cards in a row size to the tallest card.</li>
+  <li>Keyword/phrase card: width 280, <code>minHeight: 260</code>, no <code>numberOfLines</code> truncation on body text; action row at the bottom (Copy → Speak → Add) pinned via <code>justifyContent: 'space-between'</code>.</li>
+  <li>Phrase cards (<code>message.listKind === 'phrase'</code>) hide the <code>Example:</code> line and exclude it from copy; vocabulary cards show it with a bold <code>Example:</code> prefix.</li>
+</ul>
+
+<h4>"Do a quiz" starter prompt + JSON parsing</h4>
+<ul>
+  <li>Fourth starter chip alongside Summarize / List keywords / List phrases. Prompt instructs the model to return ONLY JSON: <code>{questions:[{q, options[4], answer, explanation}]}</code> with no fences and no surrounding text.</li>
+  <li>Question count is adaptive to video length: 5 for short, 8–12 for medium, up to 20 for long/dense. Hard floor 5, hard cap 20.</li>
+  <li><code>isQuizIntent(userMessage)</code> matches <code>quiz</code> / <code>multiple-choice</code> / <code>comprehension quiz</code> on the last user message and switches the assistant message into quiz-render mode (<code>listKind</code> is suppressed, <code>quiz</code> attached).</li>
+  <li><code>tryParseQuiz(reply)</code> strips optional <code>```json</code> fences, locates the first JSON object via <code>indexOf('{')</code> / <code>lastIndexOf('}')</code>, validates each question shape, clamps <code>answerIndex</code> to <code>[0..3]</code>, slices to max 20. Returns <code>undefined</code> on any failure — the raw markdown bubble renders instead, so the user still sees the questions even if parsing fails.</li>
+  <li><code>stripOptionPrefix(opt)</code> removes leading "A.", "B)", "C:" labels so the A/B/C/D rendered by the UI isn't doubled if the model labels its options.</li>
+</ul>
+
+<h4>QuizSlider component</h4>
+<ul>
+  <li>Inline component inside <code>ai-tutor.tsx</code>. Renders a horizontal slider where each card is 300×480.</li>
+  <li>Per-card layout: <code>QUESTION N / TOTAL</code> label, then question text reserved at <code>minHeight: 88</code> (4 lines × 22 lineHeight), then 4 option buttons each at <code>minHeight: 56</code> (2 lines × 18 lineHeight + padding) for visual balance.</li>
+  <li>Option tap is one-shot: selecting an option locks the row. Correct turns positive-green, wrong turns negative-red, the explanation line appears below.</li>
+  <li>Local state: <code>picked: Record&lt;number, number&gt;</code> (question index → answer index) lives inside the component; quiz state does not persist across re-mounts.</li>
 </ul>
 
 <h3>10.7 Home Screen Composition (<code>app/(tabs)/home.tsx</code>)</h3>

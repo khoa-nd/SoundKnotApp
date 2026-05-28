@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-28 (Spotify-style dark theme redesign + new video cover components).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-28 (Word-tap vocabulary, AI Tutor speak/quiz, AI list layout fixes, phrase composer).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -81,6 +81,8 @@
   <li><span class="badge done">14 ✓</span> Dynamic "Clear" input button chip next to Home clipboard actions</li>
   <li><span class="badge done">15 ✓</span> Keyboard taps persistence behavior (resolves double-tap friction)</li>
   <li><span class="badge done">16 ✓</span> Spotify-style dark theme redesign — HighlightCover, SpotifyCoverSlider, RankedSlider, SpotifyCoverList</li>
+  <li><span class="badge done">17 ✓</span> Word-tap vocabulary + multi-word phrase composer (Listen)</li>
+  <li><span class="badge done">18 ✓</span> AI Tutor — Speak response, "Do a quiz" starter, list/quiz layout outside bubble shell</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -641,6 +643,126 @@ const FEATURED_VIDEO: UserVideo = {
   <li>Tap the link icon on a Library row → URL copied to clipboard; row does <strong>not</strong> navigate.</li>
   <li>Tap anywhere else on a Library row → navigates to <code>/listen</code>.</li>
 </ol>
+
+<h2>Item 17 — Word-tap vocabulary + multi-word phrase composer (Listen)</h2>
+<p><em>Spec (product_20260528.md, Issue 5):</em> "allowing user to touch and select individual word, then it opens a contextual action strip or contextual menu (Add to Vocabulary List) or (Ask AI Tutor)." Iterated through several follow-ups to also support multi-word phrase selection, then to make the phrase composer feel typographically natural.</p>
+
+<h3>Decisions — single-word path</h3>
+<div class="decision">
+  Each transcript line body is rendered as one inline <code>&lt;Text&gt;</code> whose children are split into word and non-word tokens by a Unicode regex (<code>[\p{L}\p{N}']+|[^\p{L}\p{N}']+</code>). Word tokens are inline <code>&lt;Text onPress&gt;</code> children with <code>suppressHighlighting</code>; non-word tokens render as plain inline Text so kerning and spacing stay native. Tapping a word opens a bottom sheet with the actions <strong>Add to Vocabulary List</strong> and <strong>Ask AI Tutor</strong>. The old line-level long-press menu was removed.
+</div>
+
+<h3>Decisions — multi-word phrase composer</h3>
+<div class="tradeoff">
+  React Native's <code>&lt;Text&gt;</code> does not expose per-glyph hit testing across inline children, so true iOS-style "long-press + drag handles to extend selection" is not implementable in pure JS. An earlier attempt converted each word to a <code>Pressable</code> chip with <code>PanResponder</code> hit-testing per-word <code>onLayout</code> boxes — this broke text wrapping, broke auto-scroll measurements, and introduced visible gaps between words. Reverted.
+</div>
+<div class="decision">
+  Shipped: <strong>long-press a transcript line → opens a phrase composer modal</strong>. The sheet slides up from the bottom showing that line as a single continuous <code>&lt;Text&gt;</code> (natural typography, native spacing, no chip gaps) with each word as an inline <code>&lt;Text onPress&gt;</code> child. The user taps the first word, then taps the last word, and the composer fills the inclusive range. Tapping a word inside the existing range trims selection back to just that word.
+</div>
+
+<h3>Seamless highlight across multi-word selections</h3>
+<ul>
+  <li>Each selected word renders with <code>backgroundColor: colors.accentSoft</code>, <code>color: colors.accent</code>, <code>fontWeight: 700</code>.</li>
+  <li>For the <strong>whitespace/punctuation tokens between two selected words</strong>, the renderer looks at the surrounding word indices and applies the same background. This turns adjacent highlights into a continuous underline-style highlight rather than a row of pill-shaped chunks.</li>
+  <li>Sentence body uses <code>fontFamily: bodyLarge</code>, <code>fontSize: 18</code>, <code>lineHeight: 28</code> so the long sentence wraps cleanly in the bottom sheet without looking cramped.</li>
+</ul>
+
+<h3>Long-press routing</h3>
+<div class="decision">
+  The outer row's <code>TouchableOpacity.onLongPress</code> fires for long-presses on the gutter and on whitespace between words, but inline <code>&lt;Text onPress&gt;</code> children intercept touches on words themselves before the parent can detect the long-press. To make long-press reliable when the finger lands on a word, the same <code>onLongPress</code> handler is attached to each per-word inline <code>&lt;Text&gt;</code>. <code>delayLongPress</code> tuned to 300ms.
+</div>
+
+<h3>Selection routing — kind defaults</h3>
+<ul>
+  <li>Single-word selection → save as <code>kind: 'vocabulary'</code>.</li>
+  <li>Multi-word selection (contains a space) → save as <code>kind: 'phrase'</code>.</li>
+  <li>The action sheet labels adapt: "SELECTED WORD" / "Add to Vocabulary List" for single; "SELECTED PHRASE" / "Add to Phrase List" for multi-word.</li>
+</ul>
+
+<h3>AI vocabulary composer</h3>
+<div class="decision">
+  New service <code>src/services/vocabulary.ts</code> exposing <code>composeVocabulary(word, settings, context)</code>. Sends a tightly-formatted prompt that asks the model to return exactly 3 lines:
+  <pre>**word or phrase** /IPA/ (part of speech)
+short clear explanation in 1 sentence.
+Example: "a natural example sentence."</pre>
+  Reuses the existing <code>chat()</code> pipeline from <code>aiTutor.ts</code> so it inherits proxy/direct mode routing and provider abstraction. The result is saved verbatim to <code>savedPhrasesStore</code> with <code>source: 'ai'</code>.
+</div>
+
+<h3>UI affordances</h3>
+<ul>
+  <li>While the AI composes the entry, a <code>vocabToast</code> at the bottom shows an <code>ActivityIndicator</code> + "Composing vocabulary…". On success it flips to "Added \"&lt;word&gt;\" to Vocabulary" (or "to Phrases") for 2.4s then disappears.</li>
+  <li>Phrase composer footer has two pill buttons: <strong>Ask AI Tutor</strong> (ghost) routes the selected text into the tutor prefilled prompt; <strong>Add to List</strong> (primary green) runs <code>composeVocabulary</code> and saves.</li>
+</ul>
+
+<h3>Files touched</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>src/services/vocabulary.ts</code></td><td>NEW — single-word/phrase formatter that wraps <code>chat()</code> with a strict 3-line prompt</td></tr>
+  <tr><td><code>app/listen.tsx</code></td><td>Word-tap action sheet; long-press → phrase composer modal; <code>splitWordTokens</code> helper using Unicode regex; selectable inline word taps with seamless highlight via colored space tokens; <code>vocabToast</code> status; routes single vs multi to <code>vocabulary</code> vs <code>phrase</code> kind</td></tr>
+</table>
+
+<h3>Tradeoffs / known limits</h3>
+<div class="tradeoff">
+  <strong>Phrase selection cannot cross transcript lines.</strong> The composer scopes to a single <code>TranscriptLine</code> because the transcript is already sentence-packed (Item 1); cross-line selection would require a different mental model. If a phrase straddles a line boundary, the user must select from one line and rephrase the AI explanation later.
+</div>
+<div class="tradeoff">
+  <strong>No native drag handles.</strong> Without a native module (e.g. wrapping iOS <code>UITextView</code> + <code>UIEditMenuInteraction</code>), the iOS system "drag handles + Copy/Lookup/Translate menu" experience cannot be reproduced. The two-tap range model in a dedicated sheet is the chosen workaround. A future enhancement could ship a Swift module that exposes selected range + lets us inject custom menu items.
+</div>
+
+<h2>Item 18 — AI Tutor: Speak, Do-a-quiz, list/quiz layout fixes</h2>
+<p><em>Spec (product_20260528.md, Issues 6–8):</em> "speak out loud AI response", "Add 'Do a quiz' into initial prompts", "Bug layout UI - text overlapping btn copy and plus".</p>
+
+<h3>Issue 6 — Speak AI response (<code>expo-speech</code>)</h3>
+<div class="decision">
+  Added a speaker icon next to the copy icon at the bottom of every AI bubble. Tapping it calls <code>Speech.speak(cleanText, { rate: 1.0, onDone/onStopped/onError })</code> after stripping markdown via <code>cleanMessageForCopy</code>. Re-tapping the icon (or unmounting the bubble) calls <code>Speech.stop()</code>. Icon flips between <code>volume-high-outline</code> and <code>stop-circle-outline</code> (accent color) to indicate state.
+</div>
+<p>Per-card speak buttons were also added to the keyword/phrase slider cards. They call <code>extractHeadword(parsed.title)</code> first — strips <code>**markdown**</code>, <code>/IPA/</code> blocks, and <code>(part of speech)</code> — so only the headword itself is pronounced, not the metadata. Rate dropped to 0.9 for clearer pronunciation. Only one card can speak at a time (state via <code>speakingIndex</code>).</p>
+
+<h3>Issue 7 — list & quiz layout fixed by escaping the bubble shell</h3>
+<div class="tradeoff">
+  <strong>Root cause:</strong> when a horizontal <code>ScrollView</code> lives inside the <code>Bubble</code> shell (which uses <code>alignSelf: 'flex-start'</code>), the bubble shrinks to fit content. The slider then renders all cards in one row stretching far wider than the screen, getting clipped horizontally instead of scrolling. Net effect: only the last card was visible, text overflowed the action buttons.
+</div>
+<div class="decision">
+  Both <strong>keyword/phrase lists</strong> and <strong>quiz sliders</strong> now bypass the bubble shell entirely. The renderer returns a <code>quizWrap</code> container with <code>marginHorizontal: -30</code> (cancels the chat scroll's 30px padding for edge-to-edge bleed) wrapping a horizontal <code>ScrollView</code>. Cards use <code>snapToInterval={cardWidth + gap}</code>, <code>decelerationRate: 'fast'</code>, and <code>alignItems: 'stretch'</code> so the row size to the tallest card.
+</div>
+<ul>
+  <li><strong>Keyword/phrase card</strong> — width 280, <code>minHeight: 260</code> (grows for long content). Body has no <code>numberOfLines</code> truncation. Footer actions row pinned at bottom via <code>justifyContent: 'space-between'</code> with a top hairline divider.</li>
+  <li><strong>Action row per card</strong> — Copy → Speak (headword only) → Add (save). All three buttons are 36×36 circular pills.</li>
+  <li><strong>Phrase kind</strong>: hides the <code>Example:</code> line in the card and excludes it from the copied text (per user feedback that "Example:" cluttered phrase cards but is useful for vocabulary).</li>
+  <li><strong>Vocabulary kind</strong>: renders the example with a bold <code>Example:</code> prefix.</li>
+</ul>
+
+<h3>Issue 8 — "Do a quiz" starter + adaptive question count</h3>
+<div class="decision">
+  Added a fourth starter chip "Do a quiz" alongside the existing "Summarize / List keywords / List phrases" suggestions. The prompt instructs the model to return ONLY JSON of the shape <code>{questions:[{q, options[4], answer, explanation}]}</code> with no markdown fences. <code>tryParseQuiz()</code> strips optional <code>```json</code> wrappers, locates the first JSON object, validates each question shape, and clamps <code>answerIndex</code> to <code>[0..3]</code>.
+</div>
+<ul>
+  <li>The prompt asks the model to scale the question count to video content: 5 for short, 8–12 for medium, up to 20 for long/dense. Hard floor 5, hard cap 20.</li>
+  <li>Defensive backstop: <code>tryParseQuiz</code> additionally <code>.slice(0, 20)</code> in case the model overruns.</li>
+  <li><code>isQuizIntent(userMessage)</code> matches <code>quiz</code> / <code>multiple-choice</code> / <code>comprehension quiz</code> on the last user message to switch the assistant message into quiz-render mode.</li>
+</ul>
+
+<h3>Quiz UI</h3>
+<ul>
+  <li>Horizontal slider of cards; each card is 300×480 with <code>QUESTION N / TOTAL</code> label, question text (4 lines reserved via <code>minHeight: 88</code>), then 4 option buttons.</li>
+  <li>Options use <code>stripOptionPrefix</code> to drop any leading "A.", "B)", "C:" labels returned by the model so the A/B/C/D label rendered by the UI isn't duplicated.</li>
+  <li>Each option has <code>minHeight: 56</code> (2 lines × 18 lineHeight + padding) for visual balance.</li>
+  <li>Tapping an option locks the row: correct option turns positive-green, wrong option turns negative-red, the explanation line appears below.</li>
+</ul>
+
+<h3>Files touched</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>app/ai-tutor.tsx</code></td><td>Bubble speak button + per-card speak button via <code>expo-speech</code>; "Do a quiz" starter; <code>QuizQuestion</code> type + <code>QuizSlider</code> component + <code>tryParseQuiz</code> / <code>isQuizIntent</code> / <code>stripOptionPrefix</code> / <code>extractHeadword</code> helpers; list & quiz rendered outside bubble shell with <code>quizWrap</code> for edge-to-edge bleed; phrase-kind cards drop the example line</td></tr>
+</table>
+
+<h3>Tradeoffs</h3>
+<div class="tradeoff">
+  <strong>Quiz rendering depends on the model returning clean JSON.</strong> If the model wraps the JSON in prose or breaks the shape, <code>tryParseQuiz</code> returns <code>undefined</code> and the raw response renders as a normal markdown bubble — the user sees the questions in text form instead of as interactive cards. Acceptable fallback; a future iteration could attempt a second "format as JSON" pass.
+</div>
+<div class="tradeoff">
+  <strong>Speech is best-effort.</strong> <code>expo-speech</code> uses the device TTS engine, which has limited control over voice quality. The <code>onDone</code> / <code>onStopped</code> / <code>onError</code> callbacks reset speaking state but don't surface errors to the user.
+</div>
 
 <h2>Anything else worth knowing</h2>
 <ul>
