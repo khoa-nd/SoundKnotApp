@@ -426,7 +426,7 @@ export default function ListenScreen() {
         {transcriptHidden ? (
           <View style={[styles.transcriptHiddenBox, { borderColor: colors.hair }]}>
             <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>
-              Listen without reading. Tap the eye icon to reveal.
+              Listen without reading. Tap CC icon to reveal.
             </Text>
           </View>
         ) : transcriptLoading ? (
@@ -495,8 +495,8 @@ export default function ListenScreen() {
           style={[
             styles.eyeBtn,
             {
-              borderColor: transcriptHidden ? colors.hair : colors.ink2,
-              backgroundColor: transcriptHidden ? 'transparent' : colors.paper2,
+              borderColor: transcriptHidden ? colors.hair : colors.ink,
+              backgroundColor: transcriptHidden ? 'transparent' : colors.ink,
             },
           ]}
           onPress={() => setTranscriptHidden(!transcriptHidden)}
@@ -506,12 +506,8 @@ export default function ListenScreen() {
         >
           <Text
             style={[
-              Typography.button,
-              {
-                color: transcriptHidden ? colors.ink3 : colors.ink,
-                fontWeight: '700',
-                letterSpacing: 0.5,
-              },
+              styles.ccLabel,
+              { color: transcriptHidden ? colors.ink4 : colors.paper },
             ]}
           >
             CC
@@ -677,6 +673,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  ccLabel: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.5,
   },
   menuBackdrop: {
     flex: 1,
