@@ -1,6 +1,6 @@
 // ── Sound Knot V2 — Dictation Screen
 // Recall attempts list + text/voice input + check-all diff
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../src/constants/theme';
 import { Typography } from '../src/constants/Typography';
 import { Spacing, Radius } from '../src/constants/Spacing';
 import { Chip } from '../src/components/ui/Chip';
+import { useSavedPhrasesStore, type SavedPhrase } from '../src/stores/savedPhrasesStore';
+import { formatTimestamp } from '../src/services/transcript';
 
 interface Recall {
   id: number;
@@ -76,8 +79,16 @@ function checkRecall(userText: string, targetText: string): DiffResult {
   return { diff, accuracy, correct, missed };
 }
 
-const TARGET_TEXT =
+const FALLBACK_TARGET =
   "For sixty years we wrote software that ran on CPUs and the architecture of that software was shaped by the architecture of the processor.";
+
+interface RecallTarget {
+  id: string;
+  text: string;
+  kind: 'phrase' | 'vocabulary';
+  start?: number;
+  source: 'saved' | 'fallback';
+}
 
 export default function DictationScreen() {
   const colors = useTheme();
@@ -88,6 +99,63 @@ export default function DictationScreen() {
   const [recalls, setRecalls] = useState<Recall[]>([]);
   const [checked, setChecked] = useState(false);
   const [results, setResults] = useState<DiffResult[]>([]);
+  const [activeTargetId, setActiveTargetId] = useState<string | null>(null);
+
+  const { phrases, hydrated: phrasesHydrated, load: loadPhrases } = useSavedPhrasesStore();
+
+  useEffect(() => {
+    if (!phrasesHydrated) loadPhrases();
+  }, [phrasesHydrated, loadPhrases]);
+
+  // Targets for this video — saved phrases first, then vocabulary, fallback to demo line.
+  const targets = useMemo<RecallTarget[]>(() => {
+    const forVideo = videoId
+      ? phrases.filter((p) => p.videoId === videoId)
+      : ([] as SavedPhrase[]);
+    const phraseTargets = forVideo
+      .filter((p) => p.kind === 'phrase')
+      .sort((a, b) => a.start - b.start)
+      .map((p) => ({
+        id: p.id,
+        text: p.text,
+        kind: 'phrase' as const,
+        start: p.start,
+        source: 'saved' as const,
+      }));
+    const vocabTargets = forVideo
+      .filter((p) => p.kind === 'vocabulary')
+      .sort((a, b) => a.start - b.start)
+      .map((p) => ({
+        id: p.id,
+        text: p.text,
+        kind: 'vocabulary' as const,
+        start: p.start,
+        source: 'saved' as const,
+      }));
+    const all = [...phraseTargets, ...vocabTargets];
+    if (all.length > 0) return all;
+    return [
+      {
+        id: 'fallback',
+        text: FALLBACK_TARGET,
+        kind: 'phrase',
+        source: 'fallback',
+      },
+    ];
+  }, [phrases, videoId]);
+
+  // Keep an active target. Default to the first when targets load.
+  useEffect(() => {
+    if (!activeTargetId && targets.length > 0) {
+      setActiveTargetId(targets[0].id);
+    } else if (activeTargetId && !targets.some((t) => t.id === activeTargetId)) {
+      setActiveTargetId(targets[0]?.id ?? null);
+    }
+  }, [targets, activeTargetId]);
+
+  const activeTarget =
+    targets.find((t) => t.id === activeTargetId) ?? targets[0] ?? null;
+  const targetText = activeTarget?.text ?? FALLBACK_TARGET;
 
   // Simulate recording timer
   useEffect(() => {
@@ -107,16 +175,31 @@ export default function DictationScreen() {
 
   const stopRecording = () => {
     if (recordedSec > 0) {
-      submitDraft('voice', TARGET_TEXT.slice(0, 60) + '…');
+      submitDraft('voice', targetText.slice(0, 60) + '…');
     } else {
       setRecording(false);
     }
   };
 
   const checkAll = () => {
-    const res = recalls.map((r) => checkRecall(r.text, TARGET_TEXT));
+    const res = recalls.map((r) => checkRecall(r.text, targetText));
     setResults(res);
     setChecked(true);
+  };
+
+  const resetSession = () => {
+    setRecalls([]);
+    setResults([]);
+    setChecked(false);
+    setDraft('');
+    setRecordedSec(0);
+    setRecording(false);
+  };
+
+  const selectTarget = (id: string) => {
+    if (id === activeTargetId) return;
+    setActiveTargetId(id);
+    resetSession();
   };
 
   const avgAccuracy = results.length
@@ -128,7 +211,7 @@ export default function DictationScreen() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={[Typography.markerLarge, { color: colors.ink }]}>← Listen</Text>
+          <Text style={[Typography.markerLarge, { color: colors.ink2 }]}>← Listen</Text>
         </TouchableOpacity>
         <Text style={[Typography.monoSmall, { color: colors.ink3, letterSpacing: 0.6 }]}>
             {recalls.length} RECALL{String(recalls.length) !== '1' ? 'S' : ''}
@@ -138,20 +221,92 @@ export default function DictationScreen() {
       {/* Title */}
       <View style={styles.titleSection}>
         <Text style={[Typography.marker, { color: colors.ink4 }]}>Recall</Text>
-        <Text style={[Typography.heading, { marginTop: Spacing.xs }]}>
+        <Text style={[Typography.heading, { color: colors.ink2, marginTop: Spacing.xs }]}>
           {checked ? (
             <>
               Compare against{' '}
-              <Text style={[Typography.serifItalic, { color: colors.ink3 }]}>what was said.</Text>
+              <Text style={[Typography.serifItalic, { color: colors.ink4 }]}>what was said.</Text>
             </>
           ) : (
             <>
               Type or speak{' '}
-              <Text style={[Typography.serifItalic, { color: colors.ink3 }]}>what you just heard.</Text>
+              <Text style={[Typography.serifItalic, { color: colors.ink4 }]}>what you just heard.</Text>
             </>
           )}
         </Text>
       </View>
+
+      {/* Saved phrases & vocabulary picker */}
+      {targets.length > 0 && targets[0].source === 'saved' && (
+        <View style={styles.targetsBlock}>
+          <View style={styles.targetsHeader}>
+            <Text style={[Typography.marker, { color: colors.ink4 }]}>From this video</Text>
+            <Text style={[Typography.monoSmall, { color: colors.ink4 }]}>
+              {targets.length} ITEM{targets.length === 1 ? '' : 'S'}
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.targetsScroll}
+          >
+            {targets.map((t) => {
+              const active = t.id === activeTargetId;
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => selectTarget(t.id)}
+                  activeOpacity={0.7}
+                  style={[
+                    styles.targetCard,
+                    {
+                      backgroundColor: active ? colors.paper2 : colors.paper,
+                      borderColor: active ? colors.ink4 : colors.hair,
+                    },
+                  ]}
+                >
+                  <View style={styles.targetMetaRow}>
+                    <Ionicons
+                      name={t.kind === 'vocabulary' ? 'book-outline' : 'chatbubble-ellipses-outline'}
+                      size={12}
+                      color={colors.ink4}
+                    />
+                    <Text style={[Typography.monoSmall, { color: colors.ink4, marginLeft: 4, textTransform: 'uppercase' }]}>
+                      {t.kind}
+                    </Text>
+                    {typeof t.start === 'number' && (
+                      <Text style={[Typography.monoSmall, { color: colors.ink4, marginLeft: 'auto' }]}>
+                        {formatTimestamp(t.start)}
+                      </Text>
+                    )}
+                  </View>
+                  <Text
+                    style={[
+                      Typography.bodySmall,
+                      { color: active ? colors.ink2 : colors.ink3, marginTop: Spacing.sm },
+                    ]}
+                    numberOfLines={3}
+                  >
+                    {t.text}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Active target preview */}
+      {activeTarget && (
+        <View style={[styles.activeTarget, { borderColor: colors.hair, backgroundColor: colors.paper2 }]}>
+          <Text style={[Typography.marker, { color: colors.ink4 }]}>
+            Target {activeTarget.kind === 'vocabulary' ? '(vocabulary)' : '(phrase)'}
+          </Text>
+          <Text style={[Typography.bodyMedium, { color: colors.ink2, marginTop: Spacing.xs }]} numberOfLines={3}>
+            {activeTarget.text}
+          </Text>
+        </View>
+      )}
 
       {/* Recalls list */}
       <ScrollView
@@ -179,13 +334,13 @@ export default function DictationScreen() {
                   Recall {i + 1} · {r.type}
                 </Text>
                 {result && (
-                  <Text style={[Typography.markerLarge, { color: colors.ink, fontWeight: '500' }]}>
+                  <Text style={[Typography.markerLarge, { color: colors.ink2, fontWeight: '500' }]}>
                     {result.accuracy}% match
                   </Text>
                 )}
               </View>
 
-              <Text style={[Typography.bodyMedium, { color: colors.ink2 }]}>
+              <Text style={[Typography.bodyMedium, { color: colors.ink3 }]}>
                 {result
                   ? result.diff.map((d, j) => (
                       <Text
@@ -214,7 +369,7 @@ export default function DictationScreen() {
               {result && (
                 <View style={styles.resultChips}>
                   <Chip label={`${result.missed} missed`} dotColor={colors.negative} />
-                  <Chip label={`${result.correct} correct`} dotColor={colors.ink} />
+                  <Chip label={`${result.correct} correct`} dotColor={colors.ink3} />
                 </View>
               )}
             </View>
@@ -222,12 +377,12 @@ export default function DictationScreen() {
         })}
 
         {checked && (
-          <View style={[styles.averageCard, { backgroundColor: colors.ink }]}>
-            <Text style={[Typography.marker, { color: colors.inkInverse }]}>Session average</Text>
-            <Text style={[Typography.monoDisplay, { color: colors.paper, marginTop: Spacing.xs }]}>
+          <View style={[styles.averageCard, { backgroundColor: colors.paper2, borderColor: colors.hair }]}>
+            <Text style={[Typography.marker, { color: colors.ink4 }]}>Session average</Text>
+            <Text style={[Typography.monoDisplay, { color: colors.ink2, marginTop: Spacing.xs }]}>
               {avgAccuracy}% match
             </Text>
-            <Text style={[Typography.bodySmall, { color: colors.inkInverse2, marginTop: Spacing.xs }]}>
+            <Text style={[Typography.bodySmall, { color: colors.ink3, marginTop: Spacing.xs }]}>
               across {recalls.length} recall{String(recalls.length) !== '1' ? 's' : ''}
             </Text>
           </View>
@@ -262,16 +417,17 @@ export default function DictationScreen() {
                 {String(recordedSec % 60).padStart(2, '0')}
               </Text>
               <TouchableOpacity
-                style={[styles.recStopBtn, { backgroundColor: colors.ink }]}
+                style={[styles.recStopBtn, { backgroundColor: colors.ink2 }]}
                 onPress={stopRecording}
+                activeOpacity={0.7}
               >
-                <Text style={{ color: colors.paper, fontSize: 14 }}>✓</Text>
+                <Ionicons name="checkmark" size={18} color={colors.paper} />
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.inputRow}>
               <TextInput
-                style={[styles.textInput, { backgroundColor: colors.paper2, borderColor: colors.hair, color: colors.ink }]}
+                style={[styles.textInput, { backgroundColor: colors.paper2, borderColor: colors.hair, color: colors.ink2 }]}
                 value={draft}
                 onChangeText={setDraft}
                 placeholder="Type a recall…"
@@ -283,15 +439,17 @@ export default function DictationScreen() {
               <TouchableOpacity
                 style={[styles.iconBtn, { borderColor: colors.hair }]}
                 onPress={() => setRecording(true)}
+                activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 18, color: colors.ink }}>🎤</Text>
+                <Ionicons name="mic-outline" size={22} color={colors.ink2} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.iconBtn, { backgroundColor: draft.trim() ? colors.ink : colors.ink4, borderWidth: 0 }]}
+                style={[styles.iconBtn, { backgroundColor: draft.trim() ? colors.ink2 : colors.ink4, borderWidth: 0 }]}
                 onPress={() => submitDraft('text')}
                 disabled={!draft.trim()}
+                activeOpacity={0.7}
               >
-                <Text style={{ fontSize: 18, color: colors.paper }}>→</Text>
+                <Ionicons name="arrow-forward" size={20} color={colors.paper} />
               </TouchableOpacity>
             </View>
           )}
@@ -301,11 +459,12 @@ export default function DictationScreen() {
             <TouchableOpacity
               style={[styles.actionBtn, { borderColor: colors.hair }]}
               onPress={() => router.back()}
+              activeOpacity={0.7}
             >
-              <Text style={[Typography.buttonSmall, { color: colors.ink }]}>← Listen again</Text>
+              <Text style={[Typography.buttonSmall, { color: colors.ink2 }]}>← Listen again</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: colors.ink }]}
+              style={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: colors.ink2 }]}
               onPress={checkAll}
               disabled={recalls.length === 0}
               activeOpacity={0.7}
@@ -320,11 +479,12 @@ export default function DictationScreen() {
             <TouchableOpacity
               style={[styles.actionBtn, { borderColor: colors.hair }]}
               onPress={() => router.back()}
+              activeOpacity={0.7}
             >
-              <Text style={[Typography.buttonSmall, { color: colors.ink }]}>← Listen again</Text>
+              <Text style={[Typography.buttonSmall, { color: colors.ink2 }]}>← Listen again</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: colors.ink }]}
+              style={[styles.actionBtn, styles.actionBtnPrimary, { backgroundColor: colors.ink2 }]}
               onPress={() =>
                 router.push({
                   pathname: '/finished',
@@ -356,6 +516,37 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   titleSection: { paddingHorizontal: Spacing.screen, paddingTop: Spacing.xl },
+  targetsBlock: {
+    paddingTop: Spacing.xl,
+  },
+  targetsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    paddingHorizontal: Spacing.screen,
+    marginBottom: Spacing.sm,
+  },
+  targetsScroll: {
+    paddingHorizontal: Spacing.screen,
+    gap: Spacing.md,
+  },
+  targetCard: {
+    width: 220,
+    padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+  },
+  targetMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  activeTarget: {
+    marginHorizontal: Spacing.screen,
+    marginTop: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+  },
   recallsScroll: { flex: 1 },
   emptyBox: {
     padding: Spacing.xxl,
@@ -380,6 +571,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xxl,
     padding: Spacing.xxl,
     borderRadius: Radius.xl,
+    borderWidth: 1,
   },
   bottomDock: {
     borderTopWidth: 1,

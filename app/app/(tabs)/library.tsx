@@ -1,7 +1,7 @@
 // ── Sound Knot V2 — Library Screen
 // Video library with Spotify-style covers
 import React, { useCallback, useState } from 'react';
-import { View, ScrollView, StyleSheet, Text } from 'react-native';
+import { View, ScrollView, StyleSheet, Text, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
 import { useTheme } from '../../src/constants/theme';
@@ -28,6 +28,18 @@ export default function LibraryScreen() {
 
   const navigateToVideo = (v: UserVideo) =>
     router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id, userVideoId: v.id } });
+
+  const deleteVideo = useCallback(async (v: UserVideo) => {
+    const previous = videos;
+    setVideos((curr) => curr.filter((it) => it.id !== v.id));
+    try {
+      await videoService.remove(v.id);
+    } catch (err) {
+      console.warn('Failed to delete video', err);
+      setVideos(previous);
+      Alert.alert('Could not delete', 'Please try again in a moment.');
+    }
+  }, [videos]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.paper }]} edges={['top']}>
@@ -59,6 +71,7 @@ export default function LibraryScreen() {
             title="All Videos"
             videos={videos}
             onPress={navigateToVideo}
+            onDelete={deleteVideo}
           />
         )}
 

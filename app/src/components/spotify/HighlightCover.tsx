@@ -18,7 +18,7 @@ export function HighlightCover({ video, onPress }: Props) {
     <View style={styles.container}>
       <Text style={[styles.label, { color: colors.ink }]}>Today's Pick</Text>
       <TouchableOpacity
-        style={styles.card}
+        style={[styles.card, { borderColor: colors.hair }]}
         onPress={() => onPress(video)}
         activeOpacity={0.85}
       >
@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: Radius.xxl,
     overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   imageWrapper: {
     width: '100%',

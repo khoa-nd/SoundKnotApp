@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { Typography } from '../../constants/Typography';
@@ -11,16 +11,29 @@ type Props = {
   title: string;
   videos: UserVideo[];
   onPress: (video: UserVideo) => void;
+  onDelete?: (video: UserVideo) => void;
 };
 
 function copyLink(video: UserVideo) {
   Clipboard.setStringAsync(`https://www.youtube.com/watch?v=${video.youtube_video_id}`);
 }
 
-export function SpotifyCoverList({ title, videos, onPress }: Props) {
+export function SpotifyCoverList({ title, videos, onPress, onDelete }: Props) {
   const colors = useTheme();
 
   if (videos.length === 0) return null;
+
+  const confirmDelete = (video: UserVideo) => {
+    if (!onDelete) return;
+    Alert.alert(
+      'Delete video?',
+      `"${video.title ?? 'This video'}" will be removed from your library.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => onDelete(video) },
+      ],
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -34,7 +47,7 @@ export function SpotifyCoverList({ title, videos, onPress }: Props) {
             onPress={() => onPress(video)}
           >
             <Text style={[styles.indexText, { color: colors.ink4 }]}>{index + 1}</Text>
-            <View style={styles.thumb}>
+            <View style={[styles.thumb, { borderColor: colors.hair }]}>
               {video.thumbnail_url ? (
                 <Image source={{ uri: video.thumbnail_url }} style={styles.thumbImage} />
               ) : (
@@ -58,9 +71,22 @@ export function SpotifyCoverList({ title, videos, onPress }: Props) {
               onPress={(e) => { e.stopPropagation(); copyLink(video); }}
               hitSlop={8}
               activeOpacity={0.6}
+              style={styles.iconBtn}
             >
               <Ionicons name="link-outline" size={20} color={colors.ink4} />
             </TouchableOpacity>
+            {onDelete && (
+              <TouchableOpacity
+                onPress={(e) => { e.stopPropagation(); confirmDelete(video); }}
+                hitSlop={8}
+                activeOpacity={0.6}
+                style={styles.iconBtn}
+                accessibilityLabel={`Delete ${video.title ?? 'video'}`}
+                accessibilityRole="button"
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.ink4} />
+              </TouchableOpacity>
+            )}
           </TouchableOpacity>
         ))}
       </View>
@@ -98,6 +124,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   thumbImage: {
     ...StyleSheet.absoluteFillObject,
@@ -127,5 +154,8 @@ const styles = StyleSheet.create({
   itemSubtitle: {
     ...Typography.monoSmall,
     fontWeight: '600',
+  },
+  iconBtn: {
+    paddingHorizontal: 4,
   },
 });

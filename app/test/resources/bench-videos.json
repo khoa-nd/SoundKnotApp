@@ -1,0 +1,79 @@
+[
+  {
+    "id": "dQw4w9WgXcQ",
+    "title": "Rick Astley - Never Gonna Give You Up",
+    "channel": "Rick Astley",
+    "description": "Rick Astley - Never Gonna Give You Up",
+    "transcript": [
+      {"text": "We're no strangers to love", "start": 18.5, "duration": 3.2},
+      {"text": "You know the rules and so do I", "start": 22.2, "duration": 3.5},
+      {"text": "A full commitment's what I'm thinking of", "start": 26.1, "duration": 4.1},
+      {"text": "You wouldn't get this from any other guy", "start": 30.5, "duration": 3.8},
+      {"text": "I just wanna tell you how I'm feeling", "start": 34.8, "duration": 4.2},
+      {"text": "Gotta make you understand", "start": 39.2, "duration": 2.1},
+      {"text": "Never gonna give you up", "start": 42.5, "duration": 3.1},
+      {"text": "Never gonna let you down", "start": 45.8, "duration": 3.0},
+      {"text": "Never gonna run around and desert you", "start": 49.0, "duration": 4.0}
+    ],
+    "comprehensionPrompt": "Why did the speaker mention commitment?",
+    "vocabPrompt": "What does strangers mean in this context?"
+  },
+  {
+    "id": "jNQXAC9IVRw",
+    "title": "Me at the zoo",
+    "channel": "jawed",
+    "description": "The first video on YouTube.",
+    "transcript": [
+      {"text": "All right, so here we are in front of the elephants", "start": 0.0, "duration": 4.0},
+      {"text": "the cool thing about these guys is that they have really, really, really long trunks", "start": 4.0, "duration": 5.0},
+      {"text": "and that's cool", "start": 9.0, "duration": 2.0},
+      {"text": "and that's pretty much all there is to say", "start": 11.0, "duration": 4.0}
+    ],
+    "comprehensionPrompt": "Why did the speaker mention elephants?",
+    "vocabPrompt": "What does trunks mean in this context?"
+  },
+  {
+    "id": "9bZkp7q19f0",
+    "title": "PSY - GANGNAM STYLE M/V",
+    "channel": "officialpsy",
+    "description": "PSY - Gangnam Style",
+    "transcript": [
+      {"text": "Oppa Gangnam Style", "start": 10.0, "duration": 3.0},
+      {"text": "Gangnam Style", "start": 13.0, "duration": 2.0},
+      {"text": "A girl who is warm and humanle during the day", "start": 15.0, "duration": 4.0},
+      {"text": "A classy girl who know how to enjoy the freedom of a cup of coffee", "start": 19.5, "duration": 5.0},
+      {"text": "A girl whose heart gets hotter when night comes", "start": 24.5, "duration": 4.0},
+      {"text": "A girl with that kind of twist", "start": 28.5, "duration": 3.0}
+    ],
+    "comprehensionPrompt": "Why did the speaker mention coffee?",
+    "vocabPrompt": "What does twist mean in this context?"
+  },
+  {
+    "id": "oHg5SJYRHA0",
+    "title": "Rickroll original",
+    "channel": "Cotter548",
+    "description": "Original Rickroll",
+    "transcript": [
+      {"text": "We've known each other for so long", "start": 10.0, "duration": 4.0},
+      {"text": "Your heart's been aching but you're too shy to say it", "start": 14.0, "duration": 5.0},
+      {"text": "Inside we both know what's been going on", "start": 19.0, "duration": 4.5},
+      {"text": "We know the game and we're gonna play it", "start": 23.5, "duration": 4.0}
+    ],
+    "comprehensionPrompt": "Why did the speaker mention aching?",
+    "vocabPrompt": "What does game mean in this context?"
+  },
+  {
+    "id": "L_LUpnjgPso",
+    "title": "1-minute video",
+    "channel": "Test Channel",
+    "description": "1 minute quick talk",
+    "transcript": [
+      {"text": "Hello and welcome to this quick test video", "start": 0.0, "duration": 3.0},
+      {"text": "We are going to discuss rapid speech patterns and language acquisition", "start": 3.0, "duration": 5.0},
+      {"text": "Practicing with short content helps build fast reflexes", "start": 8.0, "duration": 4.0},
+      {"text": "That is the main take away for today", "start": 12.0, "duration": 3.0}
+    ],
+    "comprehensionPrompt": "Why did the speaker mention reflexes?",
+    "vocabPrompt": "What does rapid mean in this context?"
+  }
+]

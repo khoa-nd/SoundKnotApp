@@ -445,15 +445,24 @@ export function formatTimestamp(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-// Find the index of the transcript line that matches the current playback time
+// Find the index of the transcript line that matches the current playback time.
+// Uses binary search: O(log n) for long transcripts. Lines must be sorted by `start`.
 export function findCurrentLineIndex(
   lines: TranscriptLine[],
   currentTimeSeconds: number
 ): number {
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].start <= currentTimeSeconds) {
-      return i;
+  if (lines.length === 0) return -1;
+  if (currentTimeSeconds < lines[0].start) return 0;
+
+  let lo = 0;
+  let hi = lines.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >>> 1;
+    if (lines[mid].start <= currentTimeSeconds) {
+      lo = mid;
+    } else {
+      hi = mid - 1;
     }
   }
-  return 0;
+  return lo;
 }

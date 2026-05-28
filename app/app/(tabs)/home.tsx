@@ -21,7 +21,9 @@ import { Spacing, Radius } from '../../src/constants/Spacing';
 import { Chip } from '../../src/components/ui/Chip';
 import { HighlightCover } from '../../src/components/spotify/HighlightCover';
 import { SpotifyCoverSlider } from '../../src/components/spotify/SpotifyCoverSlider';
+import { SpotifyCoverSliderSkeleton } from '../../src/components/spotify/SpotifyCoverSliderSkeleton';
 import { RankedSlider } from '../../src/components/spotify/RankedSlider';
+import { RankedSliderSkeleton } from '../../src/components/spotify/RankedSliderSkeleton';
 import { homeService } from '../../src/services/home';
 import { videoService } from '../../src/services/videos';
 import { INITIAL_PREPROCESS_STEPS, preprocessService, type PreprocessStep, type PreprocessStepId } from '../../src/services/preprocess';
@@ -105,10 +107,10 @@ export default function HomeScreen() {
       >
         {/* Hero text */}
         <View style={styles.heroSection}>
-          <Text style={[Typography.titleLarge, { color: colors.ink3, fontWeight: '400' }]}>
+          <Text style={[Typography.titleLarge, { color: colors.ink, fontWeight: '400' }]}>
             Bring in a <Text style={{ fontWeight: '800' }}>sound</Text>.
           </Text>
-          <Text style={[Typography.titleLarge, { color: colors.ink3, fontWeight: '400' }]}>
+          <Text style={[Typography.titleLarge, { color: colors.ink, fontWeight: '400' }]}>
             Work the <Text style={{ fontWeight: '800' }}>knot</Text>.
           </Text>
         </View>
@@ -165,32 +167,31 @@ export default function HomeScreen() {
           )}
         </View>
 
-        {!loading && videos.length > 0 && (
+        {loading ? (
+          <SpotifyCoverSliderSkeleton title="Recent Videos" />
+        ) : videos.length > 0 ? (
           <SpotifyCoverSlider
             title="Recent Videos"
             videos={videos}
             onPress={(v) => router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id, userVideoId: v.id } })}
           />
-        )}
+        ) : null}
 
         <HighlightCover
           video={FEATURED_VIDEO}
           onPress={(v) => router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id } })}
         />
 
-        {!loading && videos.length > 0 && (
+        {loading ? (
+          <RankedSliderSkeleton title="Trending Videos" />
+        ) : videos.length > 0 ? (
           <RankedSlider
             title="Trending Videos"
             videos={videos}
             onPress={(v) => router.push({ pathname: '/listen', params: { videoId: v.youtube_video_id, userVideoId: v.id } })}
           />
-        )}
+        ) : null}
 
-        {loading && (
-          <View style={{ alignItems: 'center', paddingVertical: Spacing.massive }}>
-            <ActivityIndicator size="small" color={colors.accent} />
-          </View>
-        )}
         {!loading && videos.length === 0 && (
           <View style={[styles.emptyBox, { borderColor: colors.hair }]}>
             <Text style={[Typography.bodySmall, { color: colors.ink3, textAlign: 'center' }]}>

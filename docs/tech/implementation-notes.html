@@ -61,7 +61,7 @@
 <body>
 
 <h1>Implementation Notes — product_20260520.md</h1>
-<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-26 (Model Playground + AI Tutor prompt formatting & output quality parity).</div>
+<div class="subtitle">Decisions, tradeoffs, deviations from spec, and other things to know. Last updated 2026-05-28 (Spotify-style dark theme redesign + new video cover components).</div>
 
 <h2>Status overview</h2>
 <ul>
@@ -80,6 +80,7 @@
   <li><span class="badge done">13 ✓</span> AI Tutor prompt refactoring — output quality parity with playground</li>
   <li><span class="badge done">14 ✓</span> Dynamic "Clear" input button chip next to Home clipboard actions</li>
   <li><span class="badge done">15 ✓</span> Keyboard taps persistence behavior (resolves double-tap friction)</li>
+  <li><span class="badge done">16 ✓</span> Spotify-style dark theme redesign — HighlightCover, SpotifyCoverSlider, RankedSlider, SpotifyCoverList</li>
 </ul>
 <p><small>Type-check: <code>npx tsc --noEmit</code> passes after all edits.</small></p>
 
@@ -519,6 +520,127 @@ Content-Type: application/json
 <div class="decision">
   Added <code>keyboardShouldPersistTaps="handled"</code> to the outermost <code>ScrollView</code> wrapper inside <code>app/(tabs)/home.tsx</code>. This ensures that any press event on interactive buttons (like the URL submit button or chips) is intercepted and handled immediately without the keyboard swallow-dismissing the first touch gesture.
 </div>
+
+<h2>Item 16 — Spotify-style dark theme redesign</h2>
+<p><em>Spec:</em> "I love Spotify design. can you copy all 12 Spotify-style cover design and apply into this app". Iterated through many follow-ups: switch app to dark mode, remove old Netflix cards, redesign Home and Library with reusable cover components, add a featured "Today's Pick" card, and add a "Trending Videos" portrait slider.</p>
+
+<h3>Decisions</h3>
+<div class="decision">
+  Replaced the warm-paper light theme with a Spotify-inspired dark theme. Built four new presentation components under <code>src/components/spotify/</code> that render real <code>UserVideo</code> data (no static mock playlists). Home and Library are now thin orchestrators that pick which video components to show.
+</div>
+
+<h3>Theme switch — Spotify dark palette</h3>
+<ul>
+  <li><code>src/constants/theme.ts</code> — <code>useTheme()</code> now returns <code>DarkColors</code>; <code>useIsDark()</code> returns <code>true</code>. The light-only lock from §4.1 of <code>technical-docs.html</code> is gone.</li>
+  <li><code>src/constants/Colors.ts</code> — <code>DarkColors</code> rewritten to true Spotify values: <code>paper #121212</code>, <code>paper2 #1A1A1A</code>, <code>ink #FFFFFF</code>, <code>accent #1DB954</code> (Spotify green), <code>positive #1DB954</code>, white-on-transparent hairlines.</li>
+  <li><code>ColorTokens</code> type widened from <code>typeof LightColors</code> (literal-typed) to a <code>string</code>-based interface so both palettes satisfy the contract. This unlocks future dark/light toggling without further type churn.</li>
+</ul>
+
+<h3>New components (all under <code>src/components/spotify/</code>)</h3>
+<table>
+  <tr><th>Component</th><th>Purpose</th><th>Used in</th></tr>
+  <tr><td><code>HighlightCover.tsx</code></td><td>"Today's Pick" featured card. Full-width 16:9 hero with image, dark overlay, Spotify-green floating play button in the bottom-right, YouTube logo + bold title underneath.</td><td>Home only</td></tr>
+  <tr><td><code>SpotifyCover.tsx</code></td><td>Stateless image-only thumbnail primitive. Takes <code>imageUrl</code>, <code>size</code>, optional <code>aspectRatio</code>. Used by the sliders. No text or branding inside the image — keeps the thumbnail clean.</td><td>Slider building block</td></tr>
+  <tr><td><code>SpotifyCoverSlider.tsx</code></td><td>Horizontal scrollable row of square cover cards (160px). Each card shows the cover image, then below: small red YouTube logo + bold title + bold channel name. Edge-to-edge bleed via <code>marginHorizontal: -Spacing.screen</code>.</td><td>Home — "Recent Videos"</td></tr>
+  <tr><td><code>RankedSlider.tsx</code></td><td>Horizontal scrollable row of portrait (150×200) cards with rounded corners. Title underneath. Originally drew a numbered badge (Spotify "Top Charts" style); the badge was removed on user request and the component now reads as a tall-poster row.</td><td>Home — "Trending Videos"</td></tr>
+  <tr><td><code>SpotifyCoverList.tsx</code></td><td>Vertical numbered list with small 48×48 square thumbnails. Row shows index, thumb, YouTube logo + bold title, channel name, and a copy-link icon button on the right.</td><td>Library only</td></tr>
+</table>
+
+<h3>Screen composition after redesign</h3>
+<table>
+  <tr><th>Screen</th><th>Order</th><th>Components</th></tr>
+  <tr><td>Home (<code>app/(tabs)/home.tsx</code>)</td><td>Hero text → URL input + hint chips → SpotifyCoverSlider ("Recent Videos") → HighlightCover ("Today's Pick") → RankedSlider ("Trending Videos")</td><td>Slider + Highlight + Ranked</td></tr>
+  <tr><td>Library (<code>app/(tabs)/library.tsx</code>)</td><td>Header → Krashen quote → SpotifyCoverList ("All Videos")</td><td>List only</td></tr>
+</table>
+
+<h3>HighlightCover — "Today's Pick" featured video</h3>
+<div class="decision">
+  Always shows a hardcoded <code>FEATURED_VIDEO</code> constant — not the first user video. The featured pick is curated, not auto-derived from the library, so it stays consistent across users. Current pick: "How to Improve Your Communication Skills | Matt Abrahams &amp; Dr. Andrew Huberman" (<code>C6ioLFXAMVE</code>) by Huberman Lab Clips. Channel + title fetched via the YouTube oEmbed endpoint (<code>https://www.youtube.com/oembed?url=...&amp;format=json</code>) to avoid manual transcription errors.
+</div>
+<ul>
+  <li>Tapping the card calls <code>router.push({ pathname: '/listen', params: { videoId } })</code> — no <code>userVideoId</code>, because the featured video isn't in the user's library. <code>Listen</code> already handles missing <code>userVideoId</code> (no session-attach).</li>
+  <li>Label "Today's Pick" uses <code>Typography.heading</code> + <code>fontWeight: 700</code>, identical to slider section titles, so all three row labels read at the same hierarchy.</li>
+  <li>Title styled as <code>bodyMedium</code> (not <code>heading</code>) so it doesn't visually dwarf the small YouTube icon. Channel name intentionally removed from the highlight card to keep the visual hierarchy clean.</li>
+</ul>
+
+<h3>SpotifyCoverList — Library row design</h3>
+<ul>
+  <li>Each row is tap-to-open (navigates to <code>/listen</code>). The right-side <strong>link-outline</strong> icon button has its own <code>onPress</code> that calls <code>Clipboard.setStringAsync(\`https://www.youtube.com/watch?v=${id}\`)</code> and uses <code>stopPropagation()</code> to avoid triggering the row tap.</li>
+  <li>No confirmation toast for copy — intentionally silent. The old Home screen toast/animation logic was removed entirely (saves ~40 lines of Animated boilerplate).</li>
+</ul>
+
+<h3>Hero text — "Bring in a <strong>sound</strong>. Work the <strong>knot</strong>."</h3>
+<div class="decision">
+  The two-line hero uses an inline <code>&lt;Text&gt;</code> with bolded inline children for <em>sound</em> and <em>knot</em>: the surrounding "Bring in a" / "Work the" stays at weight 400, the noun jumps to weight 800. Achieved with React Native's inline Text composition — no separate components or layout primitives.
+</div>
+<ul>
+  <li>Top margin tuned to <code>-13px</code> after several pixel-level adjustments. Negative margin compensates for the visual whitespace baked into the <code>SafeAreaView</code> + Inter line-height stack.</li>
+  <li>The "Sound Knot · Practice" marker label and streak chip above the hero were removed to save vertical real estate. The streak data is still loaded from <code>homeService.fetch()</code> but no longer rendered.</li>
+</ul>
+
+<h3>Library cleanup — what got deleted</h3>
+<div class="tradeoff">
+  <strong>Saved phrases &amp; vocabulary UI fully removed from Library.</strong> The Phrases/Vocabulary tabs, search box, time filters, parsed cards, detail bottom sheet, action buttons, and toast are all gone — <code>library.tsx</code> shrank from ~665 lines to ~110. The underlying <code>savedPhrasesStore</code> and bookmark APIs are still in place; bookmarks added from Listen still persist, they just have no UI surface today. If the saved-knowledge UX is wanted again, the cleanest path is a new <code>(tabs)/saved.tsx</code> tab rather than reintroducing it under Library.
+</div>
+
+<h3>Krashen quote</h3>
+<p>Library shows a small left-bordered italic quote above the video list:</p>
+<pre>"Language is best taught when it is being used to transmit messages,
+ not when it is explicitly taught for conscious learning."
+                                          — Stephen D. Krashen</pre>
+<p>Originally also placed on Home, then moved to Library only. Renders with <code>Typography.bodySmall</code> italic + <code>Typography.monoSmall</code> attribution, with a 2px vertical accent bar to the left to mark it as a pull-quote.</p>
+
+<h3>Home screen — what got deleted</h3>
+<ul>
+  <li>The Netflix-style 240px-wide video cards from §10.7 of <code>technical-docs.html</code> are gone. The whole chunked-row layout, optimistic delete with confirm Alert, copy URL button, deleting overlay, and toast animation system are removed — ~150 lines of JSX + 80 lines of styles + 5 imports (<code>Image</code>, <code>Alert</code>, <code>Clipboard</code>, <code>Animated</code>, <code>useRef</code>, <code>useEffect</code>) all dropped.</li>
+  <li><code>videoService.remove()</code> still exists and the backend route is untouched. The delete UI moved into the Listen screen's overflow menu in a future change; for now it lives only in the API.</li>
+</ul>
+
+<h3>Featured video data flow</h3>
+<pre>// app/(tabs)/home.tsx
+const FEATURED_VIDEO: UserVideo = {
+  id: 'featured',
+  user_id: '',
+  youtube_video_id: 'C6ioLFXAMVE',
+  title: 'How to Improve Your Communication Skills | Matt Abrahams &amp; Dr. Andrew Huberman',
+  channel: 'Huberman Lab Clips',
+  thumbnail_url: 'https://i.ytimg.com/vi/C6ioLFXAMVE/maxresdefault.jpg',
+  added_at: '',
+};</pre>
+<p>The thumbnail URL uses <code>maxresdefault.jpg</code> (1280×720) rather than <code>hqdefault.jpg</code> (480×360) for sharper rendering at the hero card's full-width size. Both are public YouTube static assets — no API key required. If <code>maxresdefault</code> doesn't exist for a given video, YouTube returns a 404; the <code>HighlightCover</code> placeholder renders a music-notes icon as the fallback.</p>
+
+<h3>Tradeoffs</h3>
+<div class="tradeoff">
+  <strong>Aspect-ratio prop on <code>SpotifyCoverSlider</code> went unused.</strong> Briefly during iteration we used <code>aspectRatio={4/3}</code> for a second "More to Explore" landscape row and <code>aspectRatio={3/4}</code> for a "Video Picks" portrait row. Both rows were removed on user request. The prop is still on the component and still works — it's harmless and could power future variants without a rewrite.
+</div>
+<div class="tradeoff">
+  <strong><code>coverData.ts</code> (12 mock Spotify playlist themes) was created early then deleted</strong> when the components moved to real <code>UserVideo</code> data. The themed-cover-with-overlay design from the original Figma file (Old School Love, Late Night Drive, etc.) is not in the shipped app — we render the YouTube thumbnail as-is instead.
+</div>
+
+<h3>Files added / modified</h3>
+<table>
+  <tr><th>File</th><th>Change</th></tr>
+  <tr><td><code>src/components/spotify/HighlightCover.tsx</code></td><td>NEW — Today's Pick featured card</td></tr>
+  <tr><td><code>src/components/spotify/SpotifyCover.tsx</code></td><td>NEW — image-only thumbnail primitive</td></tr>
+  <tr><td><code>src/components/spotify/SpotifyCoverSlider.tsx</code></td><td>NEW — horizontal slider of square covers</td></tr>
+  <tr><td><code>src/components/spotify/RankedSlider.tsx</code></td><td>NEW — horizontal slider of portrait cards</td></tr>
+  <tr><td><code>src/components/spotify/SpotifyCoverList.tsx</code></td><td>NEW — vertical list w/ copy-link button</td></tr>
+  <tr><td><code>src/constants/Colors.ts</code></td><td>DarkColors rewritten to Spotify palette; <code>ColorTokens</code> widened to <code>string</code> interface</td></tr>
+  <tr><td><code>src/constants/theme.ts</code></td><td><code>useTheme()</code> returns <code>DarkColors</code>; <code>useIsDark()</code> returns <code>true</code></td></tr>
+  <tr><td><code>app/(tabs)/home.tsx</code></td><td>~260 line reduction. Replaced Netflix grid with Slider + Highlight + Ranked. Removed streak label, copied-toast system, delete flow, Alert/Clipboard/Image imports. Added <code>FEATURED_VIDEO</code> constant. Hero text uses inline bold for "sound" / "knot".</td></tr>
+  <tr><td><code>app/(tabs)/library.tsx</code></td><td>~555 line reduction. Replaced saved-phrases tabs with quote + SpotifyCoverList. Fetches videos via <code>videoService.list()</code> on focus.</td></tr>
+</table>
+
+<h3>Verification</h3>
+<ol>
+  <li><code>npx tsc --noEmit</code> clean.</li>
+  <li>Cold start with empty library → Home shows hero, URL input, "Today's Pick" featured card. No empty slider rows.</li>
+  <li>Add a video → Home shows "Recent Videos" + "Today's Pick" + "Trending Videos". Library shows "All Videos" list with the new row appearing at index 1.</li>
+  <li>Tap any "Recent Videos" cover → opens <code>/listen</code> with <code>videoId</code> + <code>userVideoId</code>.</li>
+  <li>Tap "Today's Pick" → opens <code>/listen</code> with <code>videoId=C6ioLFXAMVE</code> and no <code>userVideoId</code>.</li>
+  <li>Tap the link icon on a Library row → URL copied to clipboard; row does <strong>not</strong> navigate.</li>
+  <li>Tap anywhere else on a Library row → navigates to <code>/listen</code>.</li>
+</ol>
 
 <h2>Anything else worth knowing</h2>
 <ul>

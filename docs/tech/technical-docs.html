@@ -577,8 +577,8 @@
 │   ├── ai-settings.tsx           # AI provider/model picker
 │   └── (tabs)/                   # Tab navigator group
 │       ├── _layout.tsx           # Tab bottom nav (Home | Library | Profile)
-│       ├── home.tsx              # URL paste + AI preprocessing flow + video list w/ copy/delete
-│       ├── library.tsx           # Phrase + Vocabulary tabs (saved items, search, time filters)
+│       ├── home.tsx              # URL paste + Spotify slider + Today's Pick + Trending row
+│       ├── library.tsx           # Krashen quote + Spotify-style vertical video list
 │       └── progress.tsx          # Stats dashboard (streak + sessions + mastery)
 ├── src/
 │   ├── components/
@@ -594,6 +594,12 @@
 │   │   │   ├── YoutubePlayerView.tsx       # TS fallback (re-exports .native)
 │   │   │   ├── YoutubePlayerView.native.tsx # Wraps react-native-youtube-iframe
 │   │   │   └── YoutubePlayerView.web.tsx    # iframe + postMessage YT API
+│   │   ├── spotify/              # Spotify-style video cards (see §5.4)
+│   │   │   ├── SpotifyCover.tsx          # Image-only thumbnail primitive
+│   │   │   ├── SpotifyCoverSlider.tsx    # Horizontal square covers (Home)
+│   │   │   ├── RankedSlider.tsx          # Horizontal portrait cards (Home)
+│   │   │   ├── HighlightCover.tsx        # Today's Pick hero card (Home)
+│   │   │   └── SpotifyCoverList.tsx      # Vertical numbered list (Library)
 │   │   ├── audio/                # Audio playback controls (legacy)
 │   │   ├── content/              # Content card / list / curiosity feed (legacy)
 │   │   ├── tracker/              # Stats grid / streak badge / time tracker (legacy)
@@ -648,36 +654,36 @@
 
 <h2 id="design-system">4. Design System</h2>
 
-<h3>4.1 Color Palette — Warm Orange on Paper</h3>
-<p>The design uses a restrained palette: warm off-white paper background, near-black charcoal ink, and a single warm orange accent. <strong>The app is locked to light mode only</strong> — dark mode colors are defined but unused.</p>
+<h3>4.1 Color Palette — Spotify Dark Theme</h3>
+<p>The app now runs on a Spotify-inspired dark palette: near-black background, pure white text, single Spotify-green accent. <strong>Dark mode is the active theme</strong> — the warm-paper light palette is still defined for reference but is not used by any screen.</p>
 
-<p><strong>Light Mode</strong> (<code>src/constants/Colors.ts</code> — <code>LightColors</code>):</p>
+<p><strong>Dark Mode — active</strong> (<code>src/constants/Colors.ts</code> — <code>DarkColors</code>):</p>
 <table>
   <thead><tr><th>Token</th><th>Value</th><th>Usage</th></tr></thead>
   <tbody>
-    <tr><td><code>paper</code></td><td><code>#F4F3EF</code></td><td>Main background</td></tr>
-    <tr><td><code>paper2</code></td><td><code>#ECEAE2</code></td><td>Secondary surface / card background</td></tr>
-    <tr><td><code>ink</code></td><td><code>#2A2522</code></td><td>Primary text (warm charcoal)</td></tr>
-    <tr><td><code>ink2</code></td><td><code>#4A4440</code></td><td>Secondary text</td></tr>
-    <tr><td><code>ink3</code></td><td><code>#7A756F</code></td><td>Tertiary/muted text</td></tr>
-    <tr><td><code>ink4</code></td><td><code>#9E9990</code></td><td>Most subtle (labels, disabled)</td></tr>
-    <tr><td><code>hair</code></td><td><code>rgba(42, 37, 34, 0.10)</code></td><td>Hairline borders</td></tr>
-    <tr><td><code>hair2</code></td><td><code>rgba(42, 37, 34, 0.06)</code></td><td>Subtler dividers</td></tr>
-    <tr><td><code>accent</code></td><td><code>#E8913A</code></td><td>Warm orange accent</td></tr>
-    <tr><td><code>accentSoft</code></td><td><code>rgba(232, 145, 58, 0.14)</code></td><td>Transparent orange highlight</td></tr>
-    <tr><td><code>accentInk</code></td><td><code>#7A3D0A</code></td><td>Dark orange for text-on-light</td></tr>
-    <tr><td><code>inkInverse</code></td><td><code>rgba(244, 243, 239, 0.60)</code></td><td>Light text on dark/accent</td></tr>
-    <tr><td><code>inkInverse2</code></td><td><code>rgba(244, 243, 239, 0.70)</code></td><td>Light text on dark/accent (brighter)</td></tr>
-    <tr><td><code>positive</code></td><td><code>#00897B</code></td><td>Success (green-cyan)</td></tr>
-    <tr><td><code>negative</code></td><td><code>#E53935</code></td><td>Error (red-orange)</td></tr>
+    <tr><td><code>paper</code></td><td><code>#121212</code></td><td>Main background (Spotify near-black)</td></tr>
+    <tr><td><code>paper2</code></td><td><code>#1A1A1A</code></td><td>Secondary surface / card background</td></tr>
+    <tr><td><code>ink</code></td><td><code>#FFFFFF</code></td><td>Primary text (pure white)</td></tr>
+    <tr><td><code>ink2</code></td><td><code>#E0E0E0</code></td><td>Secondary text</td></tr>
+    <tr><td><code>ink3</code></td><td><code>#A0A0A0</code></td><td>Tertiary / muted text</td></tr>
+    <tr><td><code>ink4</code></td><td><code>#686868</code></td><td>Most subtle (labels, disabled)</td></tr>
+    <tr><td><code>hair</code></td><td><code>rgba(255, 255, 255, 0.12)</code></td><td>Hairline borders</td></tr>
+    <tr><td><code>hair2</code></td><td><code>rgba(255, 255, 255, 0.07)</code></td><td>Subtler dividers</td></tr>
+    <tr><td><code>accent</code></td><td><code>#1DB954</code></td><td>Spotify green accent</td></tr>
+    <tr><td><code>accentSoft</code></td><td><code>rgba(29, 185, 84, 0.20)</code></td><td>Transparent green highlight</td></tr>
+    <tr><td><code>accentInk</code></td><td><code>#1DB954</code></td><td>Green text on dark</td></tr>
+    <tr><td><code>positive</code></td><td><code>#1DB954</code></td><td>Success (green)</td></tr>
+    <tr><td><code>negative</code></td><td><code>#EF6C6C</code></td><td>Error (warm red)</td></tr>
   </tbody>
 </table>
 
-<p><strong>Theme Mode — Light Only:</strong> Enforced at three levels:</p>
+<p><strong>Light palette — defined but unused.</strong> <code>LightColors</code> still exists in <code>Colors.ts</code> with the legacy warm-orange-on-paper tokens (<code>paper #F4F3EF</code>, <code>ink #2A2522</code>, <code>accent #E8913A</code>). No screen reads it today; kept in case we add a theme toggle later.</p>
+
+<p><strong>Theme resolution:</strong></p>
 <ol>
-  <li><code>src/constants/theme.ts</code> — hooks hardcoded to light</li>
-  <li><code>app.json</code> — <code>"userInterfaceStyle": "light"</code></li>
-  <li><code>app/_layout.tsx</code> — <code>&lt;StatusBar style="dark" /&gt;</code></li>
+  <li><code>src/constants/theme.ts</code> — <code>useTheme()</code> returns <code>DarkColors</code>; <code>useIsDark()</code> returns <code>true</code>.</li>
+  <li><code>ColorTokens</code> type widened from <code>typeof LightColors</code> (literal types) to a <code>string</code>-based interface so any palette satisfies the contract.</li>
+  <li><code>app.json</code> still declares <code>"userInterfaceStyle": "light"</code> — this is now a known mismatch with the in-app theme. Status bar style in <code>_layout.tsx</code> may need flipping to <code>"light"</code> as a follow-up.</li>
 </ol>
 
 <h3>4.2 Typography Scale</h3>
@@ -761,7 +767,23 @@ interface YoutubePlayerViewProps {
 </table>
 <p>Active tint: <code>colors.accent</code> (#E8913A). Inactive tint: <code>colors.ink4</code>. Labels: 10px JetBrains Mono uppercase with 0.6 letter-spacing.</p>
 
-<h3>5.4 Legacy Feature Components</h3>
+<h3>5.4 Spotify Video Components (<code>src/components/spotify/</code>)</h3>
+<p>Five components that render the user's video library in Spotify-style layouts. All take real <code>UserVideo</code> objects (no mock playlist data) and accept a per-card <code>onPress</code> callback. Used by Home and Library.</p>
+<table>
+  <thead><tr><th>Component</th><th>Purpose</th><th>Layout</th><th>Used in</th></tr></thead>
+  <tbody>
+    <tr><td><code>SpotifyCover.tsx</code></td><td>Stateless image-only thumbnail primitive. Takes <code>imageUrl</code>, <code>size</code>, and optional <code>aspectRatio</code>. Renders a placeholder music-notes icon when no image is provided.</td><td>Square image, configurable aspect ratio, 6px corner radius.</td><td>Used by <code>SpotifyCoverSlider</code> internally.</td></tr>
+    <tr><td><code>SpotifyCoverSlider.tsx</code></td><td>Horizontal scrollable row of square thumbnails with title + channel below each card. YouTube logo (red, 10px) precedes the title.</td><td>160×160 cards, edge-to-edge bleed (<code>marginHorizontal: -Spacing.screen</code> + matching content padding).</td><td>Home — "Recent Videos"</td></tr>
+    <tr><td><code>RankedSlider.tsx</code></td><td>Horizontal scrollable row of tall portrait cards. Title below each card. Originally featured a numbered badge overlay (Spotify "Top Charts" style); the badge was removed on user request.</td><td>150×200 cards, 10px corner radius.</td><td>Home — "Trending Videos"</td></tr>
+    <tr><td><code>HighlightCover.tsx</code></td><td>Featured "Today's Pick" hero card. Full-width 16:9 image with dark overlay, floating green play button (<code>#1DB954</code>, bottom-right), YouTube logo + bold title below the image. <strong>Channel name intentionally omitted.</strong></td><td>Full content width, 16:9 image, 12px corner radius.</td><td>Home only</td></tr>
+    <tr><td><code>SpotifyCoverList.tsx</code></td><td>Vertical numbered list with small square thumbnails. Each row: index → 48×48 thumb → YouTube logo + title + channel → copy-link icon button. The link button uses <code>stopPropagation()</code> so it doesn't trigger the row tap.</td><td>Stacked rows with hairline dividers; 48×48 thumbs with 4px corner radius.</td><td>Library only</td></tr>
+  </tbody>
+</table>
+
+<h4>Why image-only thumbnails (no overlaid title / accent shapes)</h4>
+<p>The original Figma source included themed cover designs (Old School Love, Late Night Drive, etc.) with overlaid titles, accent bars, and Spotify logos. Earlier iterations of <code>SpotifyCover</code> rendered those overlays — see the <code>coverData.ts</code> theme system. They were removed on user request because YouTube thumbnails are already information-dense; layering text/shapes on top added noise. The shipped component is now a pure thumbnail.</p>
+
+<h3>5.5 Legacy Feature Components</h3>
 <p><code>PlaybackControls</code>, <code>StatsGrid</code>, <code>StreakBadge</code>, <code>TimeTracker</code>, <code>ContentCard</code>, <code>ContentList</code>, <code>CuriosityFeed</code>, <code>PhraseRepeater</code>, <code>CompanionChat</code> exist under <code>src/components/{audio,tracker,content,practice,companion}/</code> but are not currently wired into the V2 screen flow. They are kept for reference.</p>
 
 <h2 id="screen-flow">6. Screen Flow &amp; Navigation</h2>
@@ -1200,50 +1222,88 @@ npm run test:transcript -w app -- --json --url "https://www.youtube.com/watch?v=
   <li><strong>Anti-pattern avoided</strong>: never use a ScrollView ref callback for imperative scroll — it fires every render. Always use <code>useRef</code> + <code>useEffect</code> keyed on the tracked index.</li>
 </ul>
 
-<h3>10.7 Home Netflix-style Video Grid & Deletion (<code>app/(tabs)/home.tsx</code>)</h3>
-<p>The Home screen organizes the user's video library into Netflix-style horizontal sliding grids using chunk partitions of 10 items. It also implements keyboard bypass features and dynamic input reset capabilities.</p>
+<h3>10.7 Home Screen Composition (<code>app/(tabs)/home.tsx</code>)</h3>
+<p>The Home screen is now a thin orchestrator that composes three Spotify-style components on top of a hero header and URL input. The previous Netflix-style 240×135 card grid with inline copy/delete actions was replaced wholesale (~260 LOC removed).</p>
 
-<h4>A. Grid Layout & Netflix Slider BLEED</h4>
-<ul>
-  <li>Videos retrieved from <code>videoService.list()</code> are grouped into arrays of at most 10: <code>const chunks = chunkArray(videos, 10)</code>.</li>
-  <li>Each chunk is rendered as a separate horizontal <code>ScrollView</code> row with titles dynamically labeled by rank (e.g. "Library Videos (1-10)").</li>
-  <li>To create an edge-to-edge bleed layout matching the design system, the slider components apply negative horizontal margins (<code>marginHorizontal: -Spacing.screen</code>) on the <code>ScrollView</code> container, offset by matching positive padding on its inner content container.</li>
-  <li>Each card enforces a fixed width of <code>240px</code> and a strict <code>aspectRatio: 16/9</code> for the video thumbnail. Overlaid items (title, channel name, actions) are placed using absolute bounds to prevent layout distortion on smaller screen profiles.</li>
-</ul>
-
-<h4>B. Interactive URL Clear Chip</h4>
-<ul>
-  <li>A conditional "Clear" chip renders next to the YouTube paste helpers when <code>urlValue</code> has content: <code>urlValue.length > 0 && ...</code>.</li>
-  <li>Tapping this chip resets the active URL field (<code>setUrlValue('')</code>) for improved progressive enhancement.</li>
-</ul>
-
-<h4>C. Keyboard Taps Persistence</h4>
-<ul>
-  <li>To bypass React Native's default keyboard consumption behavior—where tapping any button during active text entry requires a double-tap (first to dismiss the keyboard, second to fire the onPress handler)—the outer page <code>ScrollView</code> has been configured with <code>keyboardShouldPersistTaps="handled"</code>. This allows button and chip touch events to fire immediately.</li>
-</ul>
-
-<h4>D. Video Item Removal</h4>
-<p>Each video card exposes copy and delete icon buttons. Tapping delete shows an <code>Alert.alert</code> confirm sheet, then performs an optimistic update:</p>
+<h4>A. Rendered order</h4>
 <ol>
-  <li>Snapshot current <code>videos</code> array</li>
-  <li>Filter the doomed item out and <code>setVideos()</code> immediately for instant feedback</li>
-  <li><code>await videoService.remove(id)</code> (DELETE <code>/videos/:id</code>)</li>
-  <li>If the API returns 404 / not found, keep the item removed because the DB row is already gone</li>
-  <li>On other errors, restore the snapshot and show an error alert</li>
+  <li><strong>Hero text</strong> — Two stacked lines: <em>"Bring in a <strong>sound</strong>."</em> and <em>"Work the <strong>knot</strong>."</em> The bolded nouns are inline child <code>&lt;Text&gt;</code> elements with <code>fontWeight: '800'</code> while the surrounding words stay at weight 400. Top margin tuned to <code>-13px</code> to absorb safe-area whitespace.</li>
+  <li><strong>URL input row</strong> — Paste field + submit pill + "Paste link" / "or use clipboard" / conditional "Clear" hint chips. Same logic as before.</li>
+  <li><strong>"Recent Videos"</strong> — <code>SpotifyCoverSlider</code> over the full <code>videos</code> array. Square 160×160 thumbnails, horizontal scroll, edge-to-edge bleed.</li>
+  <li><strong>"Today's Pick"</strong> — <code>HighlightCover</code> rendering a hardcoded <code>FEATURED_VIDEO</code> constant (currently the Huberman Lab Clips video <code>C6ioLFXAMVE</code>). Always visible regardless of library state.</li>
+  <li><strong>"Trending Videos"</strong> — <code>RankedSlider</code> over the full <code>videos</code> array. Portrait 150×200 cards.</li>
 </ol>
-<p>The copy button uses <code>expo-clipboard</code> to copy <code>https://www.youtube.com/watch?v={youtube_video_id}</code>. It shows a small fading bottom toast, not a blocking alert.</p>
 
-<h3>10.7a Saved Library UX (<code>app/(tabs)/library.tsx</code>)</h3>
-<p>The Library tab reads from <code>savedPhrasesStore</code>, not <code>GET /videos</code>. It presents saved phrases and vocabulary as searchable cards.</p>
+<h4>B. Featured video constant</h4>
+<p>The featured pick is curated, not derived from the user's library, so it stays consistent across users:</p>
+<pre><code>const FEATURED_VIDEO: UserVideo = {
+  id: 'featured',
+  user_id: '',
+  youtube_video_id: 'C6ioLFXAMVE',
+  title: 'How to Improve Your Communication Skills | Matt Abrahams &amp; Dr. Andrew Huberman',
+  channel: 'Huberman Lab Clips',
+  thumbnail_url: 'https://i.ytimg.com/vi/C6ioLFXAMVE/maxresdefault.jpg',
+  added_at: '',
+};</code></pre>
+<p>Title and channel were sourced from the YouTube oEmbed endpoint (<code>https://www.youtube.com/oembed?url=…&amp;format=json</code>) — no API key required. <code>maxresdefault.jpg</code> is preferred over <code>hqdefault.jpg</code> for sharper rendering at hero size.</p>
+
+<h4>C. Tap navigation</h4>
 <ul>
-  <li>Main tabs: <code>Phrases</code> and <code>Vocabulary</code>, with counts.</li>
-  <li>Search checks saved text, video title, video channel, kind, and source labels.</li>
-  <li>Time filters: <code>All</code>, <code>Yesterday</code>, <code>Last 7 days</code>, based on <code>createdAt</code>.</li>
-  <li>Cards display source badges (<code>Video</code> or <code>AI-curated</code>), parsed content preview, source metadata, and inline actions.</li>
-  <li>Parsed AI content follows <code>title - explanation Transcript/Example: ...</code>: title is bold, explanation is on the next line, example/transcript is on its own italic line.</li>
-  <li>Card tap opens a detail bottom sheet with full content. Video-saved items expose <code>Open at timestamp</code>; AI-curated items expose only copy/delete.</li>
-  <li>The <code>Move to Phrase/Vocabulary</code> action was intentionally removed from cards and detail sheet to keep Library focused and less cluttered.</li>
+  <li>Slider/Ranked rows push <code>/listen</code> with both <code>videoId</code> and <code>userVideoId</code>.</li>
+  <li>HighlightCover pushes <code>/listen</code> with <code>videoId</code> only (no <code>userVideoId</code> — the featured video isn't in the library, so there's no DB row to attach).</li>
 </ul>
+
+<h4>D. URL clear chip + keyboard persistence</h4>
+<p>Both behaviours from the prior implementation are preserved:</p>
+<ul>
+  <li>Conditional "Clear" chip appears next to the paste hints when <code>urlValue.length &gt; 0</code> and clears the input on tap.</li>
+  <li>Outer <code>ScrollView</code> has <code>keyboardShouldPersistTaps="handled"</code> so buttons fire on the first tap while the keyboard is visible.</li>
+</ul>
+
+<h4>E. What was removed</h4>
+<ul>
+  <li><strong>"Sound Knot · Practice" marker label + streak chip</strong> above the hero. Streak data is still loaded from <code>homeService.fetch()</code> but no longer rendered.</li>
+  <li><strong>Netflix-style 240×135 video cards</strong> with inline copy/delete actions, "Library Videos (1-10)" chunked rows, optimistic delete flow, deleting overlay, and the <code>Animated.timing</code> toast system.</li>
+  <li><strong>Imports:</strong> <code>Image</code>, <code>Alert</code>, <code>Animated</code>, <code>useRef</code>, <code>useEffect</code>, <code>* as Clipboard from 'expo-clipboard'</code>.</li>
+</ul>
+<p>Deletion is no longer wired to any Home UI. <code>videoService.remove()</code> and the backend <code>DELETE /videos/:id</code> route are untouched and still callable.</p>
+
+<h3>10.7a Library Screen (<code>app/(tabs)/library.tsx</code>)</h3>
+<p>Library was stripped from a ~665-line saved-phrases UI to a ~110-line video list. It now fetches the user's videos on focus and renders them as a Spotify-style vertical list.</p>
+
+<h4>A. Rendered order</h4>
+<ol>
+  <li><strong>Header</strong> — "Your collection" marker + "Library" heading + "<em>n</em> videos" count.</li>
+  <li><strong>Krashen quote</strong> — Italic small body text with a 2px left accent border:
+    <pre>"Language is best taught when it is being used to transmit messages,
+ not when it is explicitly taught for conscious learning."
+                                          — Stephen D. Krashen</pre>
+  </li>
+  <li><strong>"All Videos"</strong> — <code>SpotifyCoverList</code>. Each row: index → 48×48 thumb → red YouTube logo + bold title + bold channel → copy-link icon button.</li>
+</ol>
+
+<h4>B. Data flow</h4>
+<ul>
+  <li>Uses <code>useFocusEffect</code> to call <code>videoService.list()</code> every time the tab gains focus. Failures default to an empty array. No persistence — the list is always re-fetched on focus.</li>
+</ul>
+
+<h4>C. Copy-link button</h4>
+<ul>
+  <li>The right-side <code>link-outline</code> icon button copies <code>https://www.youtube.com/watch?v={id}</code> via <code>Clipboard.setStringAsync</code>.</li>
+  <li>Uses <code>event.stopPropagation()</code> so the surrounding row's "open in Listen" tap doesn't fire.</li>
+  <li>No confirmation toast — intentionally silent for simplicity.</li>
+</ul>
+
+<h4>D. What was removed</h4>
+<div class="ascii">- Phrase / Vocabulary tab bar + per-tab counts
+- Search box + clear button
+- Time filter chips (All / Yesterday / Last 7 days)
+- SavedItemCard + ParsedSavedText components
+- Detail bottom sheet with Open / Copy / Delete actions
+- IconAction / ActionButton sub-components
+- Toast animation system
+- All helpers: isAiCurated, itemMeta, matchesTimeFilter, matchesSearch, parseSavedItemText, isVeryLongContent</div>
+<p>The underlying <code>savedPhrasesStore</code> is still in place; bookmarks added from Listen still persist, they just have no UI surface today. If saved-knowledge UX returns, the cleanest path is a new dedicated tab rather than reintroducing the old UI under Library.</p>
 
 <h3>10.8 AI Tutor Keyboard Handling (<code>app/ai-tutor.tsx</code> + <code>app/_layout.tsx</code>)</h3>
 <p>iOS modal presentation interacts poorly with <code>KeyboardAvoidingView</code>: in the default <code>presentation: 'modal'</code> (page sheet) mode, the keyboard offset is measured against the sheet's frame rather than the screen, so the input docks too low and gets covered. Fix:</p>

@@ -27,6 +27,88 @@ import { usePreprocessedTranscriptStore } from '../src/stores/preprocessedTransc
 
 // ── Component ──
 
+type TranscriptLineRowProps = {
+  index: number;
+  line: TranscriptLine;
+  isCurrent: boolean;
+  bookmarked: boolean;
+  hairColor: string;
+  hair2Color: string;
+  inkColor: string;
+  ink4Color: string;
+  accentColor: string;
+  onPress: (index: number, line: TranscriptLine) => void;
+  onLongPress: (index: number) => void;
+  onBookmark: (index: number, line: TranscriptLine, bookmarked: boolean) => void;
+  onLayout: (index: number, e: LayoutChangeEvent) => void;
+};
+
+const TranscriptLineRow = React.memo(function TranscriptLineRow({
+  index,
+  line,
+  isCurrent,
+  bookmarked,
+  hairColor,
+  hair2Color,
+  inkColor,
+  ink4Color,
+  accentColor,
+  onPress,
+  onLongPress,
+  onBookmark,
+  onLayout,
+}: TranscriptLineRowProps) {
+  return (
+    <TouchableOpacity
+      onLayout={(e) => onLayout(index, e)}
+      style={[
+        styles.transcriptLine,
+        { borderTopColor: hair2Color },
+        index === 0 && { borderTopWidth: 0 },
+      ]}
+      onPress={() => onPress(index, line)}
+      onLongPress={() => onLongPress(index)}
+      delayLongPress={350}
+      activeOpacity={0.7}
+    >
+      <View style={styles.transcriptGutter}>
+        <Text
+          style={[
+            Typography.monoSmall,
+            { color: isCurrent ? accentColor : ink4Color },
+          ]}
+        >
+          {formatTimestamp(line.start)}
+        </Text>
+        <TouchableOpacity
+          onPress={() => onBookmark(index, line, bookmarked)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          style={styles.bookmarkBtn}
+          activeOpacity={0.6}
+        >
+          <Ionicons
+            name={bookmarked ? 'bookmark' : 'bookmark-outline'}
+            size={16}
+            color={bookmarked ? accentColor : ink4Color}
+          />
+        </TouchableOpacity>
+      </View>
+      <Text
+        style={[
+          Typography.bodyLarge,
+          {
+            color: isCurrent ? inkColor : ink4Color,
+            flex: 1,
+            fontWeight: isCurrent ? '900' : '400',
+          },
+        ]}
+      >
+        {line.text}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
 export default function ListenScreen() {
   const colors = useTheme();
   const { width } = useWindowDimensions();
@@ -146,19 +228,35 @@ export default function ListenScreen() {
   useEffect(() => {
     if (!ready) return;
 
-    const interval = setInterval(async () => {
+    let lastReportedTime = -1;
+    let lastLineIdx = -2;
+
+    const tick = async () => {
       try {
         const t = await playerRef.current?.getCurrentTime();
-        if (typeof t === 'number') {
+        if (typeof t !== 'number' || !Number.isFinite(t)) return;
+
+        // Avoid re-rendering when the time hasn't moved enough to matter.
+        if (Math.abs(t - lastReportedTime) >= 0.2) {
+          lastReportedTime = t;
           setCurrentTime(t);
-          if (transcript.length > 0) {
-            setCurrentLineIdx(findCurrentLineIndex(transcript, t));
+        }
+
+        if (transcript.length > 0) {
+          const idx = findCurrentLineIndex(transcript, t);
+          if (idx !== lastLineIdx) {
+            lastLineIdx = idx;
+            setCurrentLineIdx(idx);
           }
         }
       } catch {
         // ignore
       }
-    }, 500);
+    };
+
+    // Faster poll keeps the highlight visually in sync with the audio (~5fps).
+    const interval = setInterval(tick, 200);
+    void tick();
 
     return () => clearInterval(interval);
   }, [ready, transcript]);
@@ -213,6 +311,34 @@ export default function ListenScreen() {
       // ignore
     }
   }, []);
+
+  // Stable callbacks for the memoized transcript rows
+  const handleLinePress = useCallback(
+    (_index: number, line: TranscriptLine) => {
+      seekTo(line.start);
+    },
+    [seekTo],
+  );
+  const handleLineLongPress = useCallback((index: number) => {
+    setMenuLineIdx(index);
+  }, []);
+  const handleLineBookmark = useCallback(
+    (_index: number, line: TranscriptLine, bookmarked: boolean) => {
+      if (bookmarked) {
+        removeByLine(vid, line.start);
+      } else {
+        addPhrase({
+          text: line.text,
+          videoId: vid,
+          videoTitle: videoTitle ?? undefined,
+          videoChannel: videoChannel ?? undefined,
+          start: line.start,
+          kind: 'phrase',
+        });
+      }
+    },
+    [vid, videoTitle, videoChannel, addPhrase, removeByLine],
+  );
 
   // ── Open AI Tutor with current transcript window + optional selection ──
   const openAiTutor = useCallback(
@@ -321,67 +447,22 @@ export default function ListenScreen() {
             const isCurrent = i === currentLineIdx;
             const bookmarked = phrasesHydrated && hasPhrase(vid, line.start);
             return (
-              <TouchableOpacity
+              <TranscriptLineRow
                 key={i}
-                onLayout={(e) => onLineLayout(i, e)}
-                style={[
-                  styles.transcriptLine,
-                  { borderTopColor: colors.hair2 },
-                  i === 0 && { borderTopWidth: 0 },
-                ]}
-                onPress={() => seekTo(line.start)}
-                onLongPress={() => setMenuLineIdx(i)}
-                delayLongPress={350}
-                activeOpacity={0.7}
-              >
-                <View style={styles.transcriptGutter}>
-                  <Text
-                    style={[
-                      Typography.monoSmall,
-                      { color: isCurrent ? colors.accent : colors.ink4 },
-                    ]}
-                  >
-                    {formatTimestamp(line.start)}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (bookmarked) {
-                        removeByLine(vid, line.start);
-                      } else {
-                        addPhrase({
-                          text: line.text,
-                          videoId: vid,
-                          videoTitle: videoTitle ?? undefined,
-                          videoChannel: videoChannel ?? undefined,
-                          start: line.start,
-                          kind: 'phrase',
-                        });
-                      }
-                    }}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                    style={styles.bookmarkBtn}
-                    activeOpacity={0.6}
-                  >
-                    <Ionicons
-                      name={bookmarked ? 'bookmark' : 'bookmark-outline'}
-                      size={16}
-                      color={bookmarked ? colors.accent : colors.ink4}
-                    />
-                  </TouchableOpacity>
-                </View>
-                <Text
-                  style={[
-                    Typography.bodyLarge,
-                    {
-                      color: isCurrent ? colors.ink : colors.ink4,
-                      flex: 1,
-                      fontWeight: isCurrent ? '900' : '400',
-                    },
-                  ]}
-                >
-                  {line.text}
-                </Text>
-              </TouchableOpacity>
+                index={i}
+                line={line}
+                isCurrent={isCurrent}
+                bookmarked={bookmarked}
+                hairColor={colors.hair}
+                hair2Color={colors.hair2}
+                inkColor={colors.ink}
+                ink4Color={colors.ink4}
+                accentColor={colors.accent}
+                onPress={handleLinePress}
+                onLongPress={handleLineLongPress}
+                onBookmark={handleLineBookmark}
+                onLayout={onLineLayout}
+              />
             );
           })
         )}
@@ -411,15 +492,30 @@ export default function ListenScreen() {
           <Text style={[Typography.button, { color: colors.ink, marginLeft: Spacing.sm }]}>Ask AI Tutor</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.eyeBtn, { borderColor: colors.hair }]}
+          style={[
+            styles.eyeBtn,
+            {
+              borderColor: transcriptHidden ? colors.hair : colors.ink2,
+              backgroundColor: transcriptHidden ? 'transparent' : colors.paper2,
+            },
+          ]}
           onPress={() => setTranscriptHidden(!transcriptHidden)}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel={transcriptHidden ? 'Show transcript' : 'Hide transcript'}
         >
-          <Ionicons
-            name={transcriptHidden ? 'eye-off-outline' : 'eye-outline'}
-            size={22}
-            color={colors.ink}
-          />
+          <Text
+            style={[
+              Typography.button,
+              {
+                color: transcriptHidden ? colors.ink3 : colors.ink,
+                fontWeight: '700',
+                letterSpacing: 0.5,
+              },
+            ]}
+          >
+            CC
+          </Text>
         </TouchableOpacity>
       </View>
 

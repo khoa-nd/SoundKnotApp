@@ -36,7 +36,7 @@ export function RankedSlider({ title, videos, onPress }: Props) {
             onPress={() => onPress(video)}
             activeOpacity={0.85}
           >
-            <View style={styles.imageWrapper}>
+            <View style={[styles.imageWrapper, { borderColor: colors.hair }]}>
               {video.thumbnail_url ? (
                 <Image source={{ uri: video.thumbnail_url }} style={styles.image} />
               ) : (
@@ -86,6 +86,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.xl,
     overflow: 'hidden',
     backgroundColor: '#1a1a1a',
+    borderWidth: StyleSheet.hairlineWidth,
   },
   image: {
     ...StyleSheet.absoluteFillObject,

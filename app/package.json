@@ -10,7 +10,8 @@
     "lint": "expo lint",
     "clean": "expo start -c",
     "test:transcript": "tsx test/scripts/transcript-split-review.ts",
-    "test:playground": "tsx test/scripts/playground-run-review.ts"
+    "test:playground": "tsx test/scripts/playground-run-review.ts",
+    "test:ai-bench": "tsx test/scripts/ai-bench.ts"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
