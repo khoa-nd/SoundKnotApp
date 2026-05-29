@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Design Audit V3 · Pro Max — Home Screen · SoundKnot</title>
+<style>
+  :root{
+    --paper:#121212; --paper2:#1A1A1A; --paper3:#202020;
+    --ink:#FFFFFF; --ink2:#E0E0E0; --ink3:#A0A0A0; --ink4:#686868;
+    --hair:rgba(255,255,255,0.12); --hair2:rgba(255,255,255,0.07);
+    --accent:#1DB954; --blocker:#E24B4A; --critical:#FF7A45;
+    --warn:#E8A838; --tip:#4FA8E8; --good:#1DB954; --pro:#9B7BFF;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink2); font-family:var(--sans); line-height:1.6; font-size:15px; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:960px; margin:0 auto; padding:48px 24px 96px;}
+  header.report{border-bottom:1px solid var(--hair); padding-bottom:28px; margin-bottom:32px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--pro); margin:0 0 8px;}
+  h1{font-size:30px; line-height:1.2; letter-spacing:-0.5px; color:var(--ink); margin:0 0 6px;}
+  h1 b{font-weight:800;}
+  .sub{color:var(--ink3); font-size:14px; margin:0;}
+  h2{font-size:13px; font-family:var(--mono); letter-spacing:1.2px; text-transform:uppercase; color:var(--ink); margin:46px 0 14px; padding-bottom:10px; border-bottom:1px solid var(--hair); display:flex; align-items:center; gap:10px;}
+  h3{font-size:17px; color:var(--ink); margin:26px 0 4px; letter-spacing:-0.2px;}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 20px; font-size:13.5px;}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--hair2); vertical-align:top;}
+  th{font-family:var(--mono); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--ink4); font-weight:500;}
+  td code{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--paper2); padding:1px 6px; border-radius:4px;}
+  tr:last-child td{border-bottom:none;}
+  .meta-tbl td:first-child{color:var(--ink4); font-family:var(--mono); font-size:12px; width:150px; text-transform:uppercase; letter-spacing:0.5px;}
+
+  .scores{display:grid; gap:13px; margin:8px 0;}
+  .scorebar{display:grid; grid-template-columns:150px 1fr 64px; align-items:center; gap:14px;}
+  .scorebar .lbl{font-family:var(--mono); font-size:12px; letter-spacing:0.5px; color:var(--ink3); text-transform:uppercase;}
+  .track{height:12px; border-radius:7px; background:var(--paper3); overflow:hidden;}
+  .fill{height:100%; border-radius:7px;}
+  .scorebar .val{font-family:var(--mono); font-weight:600; text-align:right; color:var(--ink);}
+  .formula{font-family:var(--mono); font-size:12.5px; color:var(--ink3); background:var(--paper2); border:1px solid var(--hair2); border-radius:8px; padding:12px 14px; margin:10px 0; overflow-x:auto;}
+  .scorenote{color:var(--ink3); font-size:13.5px; font-style:italic; margin:14px 0 0;}
+
+  .ds-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin:14px 0;}
+  .swatch{border:1px solid var(--hair2); border-radius:10px; overflow:hidden; font-size:11px; font-family:var(--mono);}
+  .swatch .c{height:46px;}
+  .swatch .t{padding:6px 8px; color:var(--ink3);}
+  .swatch .t b{display:block; color:var(--ink); font-family:var(--sans); font-size:12px; margin-bottom:1px;}
+
+  .prio{display:flex; align-items:center; gap:12px; margin:36px 0 4px; padding:9px 14px; border-radius:8px; font-family:var(--mono); font-size:12px; letter-spacing:0.8px; text-transform:uppercase; font-weight:600;}
+  .prio .rank{background:var(--paper); border-radius:6px; padding:1px 8px; font-size:11px;}
+  .prio .verdict{margin-left:auto; font-size:11px;}
+  .prio.crit{background:rgba(226,75,74,0.12); color:var(--blocker);}
+  .prio.high{background:rgba(232,168,56,0.12); color:var(--warn);}
+  .prio.med{background:rgba(79,168,232,0.12); color:var(--tip);}
+  .prio.pass{background:rgba(29,185,84,0.12); color:var(--good);}
+
+  .chk{list-style:none; padding:0; margin:6px 0 16px;}
+  .chk li{position:relative; padding:7px 0 7px 28px; border-bottom:1px solid var(--hair2); font-size:14px;}
+  .chk li:last-child{border-bottom:none;}
+  .chk li.p:before{content:"✓"; position:absolute; left:4px; color:var(--good); font-weight:700;}
+  .chk li.f:before{content:"✗"; position:absolute; left:4px; color:var(--blocker); font-weight:700;}
+  .chk li.n:before{content:"○"; position:absolute; left:4px; color:var(--warn); font-weight:700;}
+  .chk li b{color:var(--ink);}
+  .chk li .tag{font-family:var(--mono); font-size:10px; color:var(--ink4); margin-left:6px;}
+
+  .issue{border-left:3px solid var(--hair); background:var(--paper2); border-radius:0 10px 10px 0; padding:14px 18px; margin:13px 0;}
+  .issue.warn{border-left-color:var(--warn);}
+  .issue.crit{border-left-color:var(--critical);}
+  .issue.tip{border-left-color:var(--tip); padding:11px 18px;}
+  .issue .name{font-weight:700; color:var(--ink); font-size:15px; margin:0 0 5px;}
+  .issue p{margin:4px 0; font-size:14px;}
+  .issue .k{font-family:var(--mono); font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:var(--ink4); margin-right:6px;}
+  .issue code{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--paper); padding:1px 6px; border-radius:4px;}
+  .issue.tip p{margin:0;}
+
+  .callout{background:var(--paper2); border:1px solid var(--hair2); border-radius:10px; padding:15px 18px; margin:18px 0; font-size:14px;}
+  .callout.pro{background:rgba(155,123,255,0.08); border-color:rgba(155,123,255,0.3);}
+  .callout b{color:var(--ink);}
+
+  .pillrow{display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 0;}
+  .pill{font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--hair);}
+  .pill.c{color:var(--critical); border-color:rgba(255,122,69,0.4);}
+  .pill.w{color:var(--warn); border-color:rgba(232,168,56,0.4);}
+  .pill.t{color:var(--tip); border-color:rgba(79,168,232,0.4);}
+  .pill.g{color:var(--good); border-color:rgba(29,185,84,0.4);}
+
+  footer.report{margin-top:54px; padding-top:20px; border-top:1px solid var(--hair); font-family:var(--mono); font-size:11px; color:var(--ink4); letter-spacing:0.4px; line-height:1.8;}
+  @media print{ body{background:#fff;color:#222;} .issue,.callout,.formula,.swatch{background:#fafafa;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="report">
+    <p class="eyebrow">◆ UI/UX Pro Max · Design Intelligence Audit · V3</p>
+    <h1>Home Screen — <b>SoundKnot</b></h1>
+    <p class="sub">Evaluated against the Pro Max 10-priority framework + App-UI pre-delivery checklist · live Penpot board</p>
+  </header>
+
+  <table class="meta-tbl">
+    <tr><td>Input</td><td>Home — SoundKnot (mobile screen)</td></tr>
+    <tr><td>Method</td><td>UI/UX Pro Max v2.5.0 skill · Penpot MCP (live board read)</td></tr>
+    <tr><td>Product type</td><td>Entertainment · video/music · dark · content-first · mobile</td></tr>
+    <tr><td>Stack</td><td>React Native / Expo</td></tr>
+    <tr><td>Confidence</td><td>🟢 High — live shape tree + computed WCAG ratios</td></tr>
+    <tr><td>Board</td><td><code>1ff8d8a3-…-17f4bb1b102f</code> · 390 × 1143px</td></tr>
+    <tr><td>Date</td><td>2026-05-29 · supersedes V2 lens (same board state)</td></tr>
+  </table>
+
+  <!-- SCORE -->
+  <h2>📊 Pro Max Score</h2>
+  <div class="scores">
+    <div class="scorebar"><span class="lbl">Overall</span><span class="track"><span class="fill" style="width:85%;background:var(--good)"></span></span><span class="val">85/100</span></div>
+    <div class="scorebar"><span class="lbl">P1 Accessibility</span><span class="track"><span class="fill" style="width:80%;background:var(--warn)"></span></span><span class="val">80/100</span></div>
+    <div class="scorebar"><span class="lbl">P2 Touch</span><span class="track"><span class="fill" style="width:95%;background:var(--good)"></span></span><span class="val">95/100</span></div>
+    <div class="scorebar"><span class="lbl">P6 Type &amp; Color</span><span class="track"><span class="fill" style="width:100%;background:var(--good)"></span></span><span class="val">100/100</span></div>
+  </div>
+  <div class="formula">Overall: 100 − (1 🔴 design × 8) − (1 🟡 × 4) − (3 🟢 × 1) = 100 − 8 − 4 − 3 = <b style="color:var(--ink)">85/100</b></div>
+  <p class="scorenote"><b>⚠️ Verification finding:</b> contrary to the V2 report, the standalone "YOUTUBE URL" field label is <b>not present on the current live board</b> — the field is placeholder-only again. That reinstates one design-side 🔴 (placeholder-as-only-label, WCAG 1.3.1/3.3.2). A second 🔴 (icon-button <code>accessibilityLabel</code>) remains code-only. Contrast, touch sizing, and tokens are all still solid.</p>
+
+  <!-- DESIGN SYSTEM BENCHMARK -->
+  <h2>🎨 Pro Max design-system benchmark</h2>
+  <p>The skill's reasoning engine recommends, for an <b>entertainment / video / dark / content-first</b> product, the <b>“Flat Design Mobile (Touch-First)”</b> style — flat, no shadows, color-blocking, solid bottom tabs, immediate press feedback. SoundKnot's current design aligns well with this; the main divergence is the accent hue.</p>
+  <table>
+    <thead><tr><th>Dimension</th><th>Pro Max recommendation</th><th>SoundKnot actual</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>Style</td><td>Flat, no shadow, color-blocking, solid tabs</td><td>Flat dark, surface-lift via paper2, solid bottom tabs</td><td>✅ aligned</td></tr>
+      <tr><td>Background</td><td><code>#0F172A</code> (slate) </td><td><code>#121212</code> / <code>#1A1A1A</code> (neutral charcoal)</td><td>✅ valid alt (neutral dark)</td></tr>
+      <tr><td>Accent / CTA</td><td>Pink <code>#EC4899</code> + blue <code>#2563EB</code></td><td>Spotify green <code>#1DB954</code></td><td>◐ brand choice — green is a deliberate, coherent identity</td></tr>
+      <tr><td>Dark mode depth</td><td>Color-swap, no shadow</td><td>Surface lift (paper2 over paper), no fake shadows</td><td>✅ textbook</td></tr>
+      <tr><td>Bottom tabs</td><td>Solid fill, no float, ≤5 items</td><td>Solid paper, 3 items, labels + icons</td><td>✅ aligned</td></tr>
+      <tr><td>Icons</td><td>SVG, no emoji</td><td>SVG nav icons; ▶ marker is a glyph</td><td>◐ see Tip on marker glyph</td></tr>
+    </tbody>
+  </table>
+  <div class="ds-grid">
+    <div class="swatch"><div class="c" style="background:#121212"></div><div class="t"><b>paper</b>#121212</div></div>
+    <div class="swatch"><div class="c" style="background:#1A1A1A"></div><div class="t"><b>paper2</b>#1A1A1A</div></div>
+    <div class="swatch"><div class="c" style="background:#202020"></div><div class="t"><b>paper3</b>#202020</div></div>
+    <div class="swatch"><div class="c" style="background:#1DB954"></div><div class="t"><b>accent</b>#1DB954</div></div>
+    <div class="swatch"><div class="c" style="background:#FFFFFF"></div><div class="t"><b>ink</b>#FFFFFF</div></div>
+    <div class="swatch"><div class="c" style="background:#A0A0A0"></div><div class="t"><b>ink3</b>#A0A0A0</div></div>
+  </div>
+
+  <!-- PRIORITY-BY-PRIORITY -->
+  <h2>🔟 Evaluation by Pro Max priority</h2>
+
+  <div class="prio crit"><span class="rank">P1</span> Accessibility <span class="verdict">80/100 · 1 design + 1 code gap</span></div>
+  <ul class="chk">
+    <li class="p"><b>Contrast 4.5:1</b> — placeholder <code>#A0A0A0</code>/paper2 = <b>6.66:1</b>; nav inactive <code>#A0A0A0</code>/paper = <b>7.16:1</b>; body white = 18.7:1. All pass AA. <span class="tag">color-contrast</span></li>
+    <li class="p"><b>Color not by hue alone</b> — active tab uses green <em>and</em> a filled icon; not color-only. <span class="tag">color-not-only</span></li>
+    <li class="f"><b>Visible field label</b> — the standalone "YOUTUBE URL" label is <b>not on the live board</b>; the field relies on the placeholder alone (which disappears on typing). Re-add a persistent label above the input. <span class="tag">form-labels · WCAG 1.3.1/3.3.2</span></li>
+    <li class="f"><b>aria / accessibilityLabel on icon-only buttons</b> — submit ✦ has no <code>accessibilityLabel</code> in source. Code-only; invisible in a design frame. <span class="tag">aria-labels</span></li>
+    <li class="n"><b>Reduced motion / Dynamic Type</b> — not expressible in a static frame; verify in code. <span class="tag">reduced-motion · dynamic-type</span></li>
+  </ul>
+
+  <div class="prio pass"><span class="rank">P2</span> Touch &amp; Interaction <span class="verdict">95/100 · pass</span></div>
+  <ul class="chk">
+    <li class="p"><b>Min target 44×44</b> — submit resized to <b>44×44</b>; nav columns ~130px wide in an 80px bar. <span class="tag">touch-target-size</span></li>
+    <li class="p"><b>Touch spacing ≥8px</b> — chips and cards have ≥8px gaps. <span class="tag">touch-spacing</span></li>
+    <li class="p"><b>Press feedback</b> — flat-style immediate feedback expected (scale 0.97); enabled-affordance submit reads as actionable. <span class="tag">press-feedback</span></li>
+    <li class="n"><b>Safe-area awareness</b> — bottom nav must clear the gesture bar; reserve safe-area inset in code. <span class="tag">safe-area-awareness</span></li>
+  </ul>
+
+  <div class="prio high"><span class="rank">P3</span> Performance <span class="verdict">design-side OK</span></div>
+  <ul class="chk">
+    <li class="p"><b>Reserve space / no CLS</b> — fixed card + thumbnail dimensions reserve layout space. <span class="tag">image-dimension</span></li>
+    <li class="n"><b>Image optimization &amp; lazy-load</b> — thumbnails should use <code>loading=lazy</code>/WebP + skeletons in code (source has skeletons). <span class="tag">image-optimization · progressive-loading</span></li>
+  </ul>
+
+  <div class="prio pass"><span class="rank">P4</span> Style Selection <span class="verdict">pass</span></div>
+  <ul class="chk">
+    <li class="p"><b>Style matches product</b> — flat dark entertainment style; consistent across sections. <span class="tag">style-match · consistency</span></li>
+    <li class="p"><b>One primary action</b> — the URL submit is the single primary CTA. <span class="tag">primary-action</span></li>
+    <li class="p"><b>Elevation consistent</b> — single surface-lift scale (paper→paper2→paper3); no random shadows. <span class="tag">elevation-consistent</span></li>
+  </ul>
+
+  <div class="prio high"><span class="rank">P5</span> Layout &amp; Responsive <span class="verdict">pass (design)</span></div>
+  <ul class="chk">
+    <li class="p"><b>8pt spacing rhythm</b> — 16 screen padding; 8/14/24 gaps; tiered section spacing. <span class="tag">spacing-scale</span></li>
+    <li class="p"><b>Content priority</b> — hero + input first, content lists below, nav pinned. <span class="tag">content-priority</span></li>
+    <li class="p"><b>Fixed-element offset</b> — board grew 1094→1143 so content clears the pinned nav (+38px gap). <span class="tag">fixed-element-offset</span></li>
+  </ul>
+
+  <div class="prio pass"><span class="rank">P6</span> Typography &amp; Color <span class="verdict">100/100 · pass</span></div>
+  <ul class="chk">
+    <li class="p"><b>Type scale</b> — 32 hero / 22 heading / 13–14 body / 10.5 mono chips; clear hierarchy via size + weight. <span class="tag">font-scale · weight-hierarchy</span></li>
+    <li class="p"><b>Semantic color tokens</b> — paper/ink/accent token system; even the YouTube red is now token <code>brand.youtube</code>. <span class="tag">color-semantic</span></li>
+    <li class="p"><b>Accessible pairs</b> — every text/bg pair ≥4.5:1. <span class="tag">color-accessible-pairs</span></li>
+  </ul>
+
+  <div class="prio med"><span class="rank">P7</span> Animation <span class="verdict">code-side</span></div>
+  <ul class="chk">
+    <li class="n"><b>Duration / easing / reduced-motion</b> — not in a static frame; ensure 150–300ms + <code>prefers-reduced-motion</code> in code. <span class="tag">duration-timing · reduced-motion</span></li>
+  </ul>
+
+  <div class="prio high"><span class="rank">P8</span> Forms &amp; Feedback <span class="verdict">pass (design)</span></div>
+  <ul class="chk">
+    <li class="f"><b>Field label missing on board</b> — placeholder-only; no persistent visible label. Re-add one above the input. <span class="tag">input-labels</span></li>
+    <li class="p"><b>Enabled affordance</b> — submit shows accent outline + glyph rather than inert gray. <span class="tag">disabled-states</span></li>
+    <li class="n"><b>Inline validation / error path</b> — design a visible error state for bad URLs (source has a progress modal). <span class="tag">inline-validation · error-clarity</span></li>
+  </ul>
+
+  <div class="prio high"><span class="rank">P9</span> Navigation <span class="verdict">pass</span></div>
+  <ul class="chk">
+    <li class="p"><b>Bottom nav ≤5 + label+icon</b> — 3 items, each icon + text label. <span class="tag">bottom-nav-limit · nav-label-icon</span></li>
+    <li class="p"><b>Active state</b> — HOME highlighted via accent color + filled icon. <span class="tag">nav-state-active</span></li>
+    <li class="p"><b>Destructive separation</b> — no destructive actions crammed into nav. <span class="tag">destructive-nav-separation</span></li>
+  </ul>
+
+  <div class="prio med"><span class="rank">P10</span> Charts &amp; Data <span class="verdict">N/A</span></div>
+  <ul class="chk"><li class="p">No charts on this screen — category not applicable. <span class="tag">n/a</span></li></ul>
+
+  <!-- ISSUES -->
+  <h2>⚠️ Issues to address</h2>
+
+  <div class="issue crit">
+    <p class="name">🔴 Field label missing on the board (placeholder-only) <span style="font-weight:400;color:var(--ink4);font-size:12px">(design)</span></p>
+    <p>The standalone "YOUTUBE URL" label that V2 reported is <b>not on the current live board</b> — only the placeholder remains, which vanishes on input. Re-add a persistent visible label above the URL Input.</p>
+    <p><span class="k">Fix</span>Insert a mono-uppercase label (e.g. ink3, 11px) into the flex column directly above <code>URL Input</code>; in source add a visible <code>&lt;Text&gt;</code> label or <code>accessibilityLabel</code> on the <code>TextInput</code>.</p>
+    <p><span class="k">Rule</span>P1/P8 · <code>form-labels</code> · WCAG 1.3.1 / 3.3.2</p>
+  </div>
+
+  <div class="issue crit">
+    <p class="name">🔴 Icon-only submit button lacks accessibilityLabel <span style="font-weight:400;color:var(--ink4);font-size:12px">(code-only)</span></p>
+    <p>The ✦ submit and any icon-only control need <code>accessibilityLabel</code> for VoiceOver/TalkBack. Not representable in the Penpot frame — design is complete; the code fix has not shipped.</p>
+    <p><span class="k">Fix</span><code>accessibilityLabel="Process YouTube link"</code> on the submit <code>TouchableOpacity</code> · <code>home.tsx:139-153</code></p>
+    <p><span class="k">Rule</span>P1 · <code>aria-labels</code> · WCAG 4.1.2</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">🟡 Thumbnail letterbox (16:9 source in square/portrait slots)</p>
+    <p>320×180 thumbnails cover-fit into 160×160 (Recent) and 150×200 (Trending) boxes, leaving bars — reads as unintentional framing.</p>
+    <p><span class="k">Fix</span>Crop-fill edge-to-edge (zoom, no bars) or change the thumbnail boxes to 16:9. <span style="color:var(--ink4)">(Open decision.)</span></p>
+    <p><span class="k">Rule</span>P4 · <code>style-match</code> · image framing consistency</p>
+  </div>
+
+  <div class="issue tip"><p><b>🟢 Marker glyph vs SVG icon</b> — the ▶ YouTube marker is a text glyph, not an SVG from the icon family. Pro Max <code>no-emoji-icons</code> / <code>icon-style-consistent</code> prefer a vector. Swap ▶ for the same Lucide/Ionicons play/youtube icon used elsewhere.</p></div>
+  <div class="issue tip"><p><b>🟢 Hero letter-spacing</b> — source <code>titleLarge</code> sets <code>-0.4</code> tracking; Penpot drops negative tracking, so the hero reads slightly looser than the app. Cosmetic.</p></div>
+  <div class="issue tip"><p><b>🟢 Truncated edge labels</b> ("The…", "Chris…") — intentional off-screen-peek match; ensure the real app truncates via a proper ellipsis component.</p></div>
+
+  <!-- WHAT'S WORKING -->
+  <h2>✅ What's working well</h2>
+  <ul class="chk">
+    <li class="p"><b>WCAG AA clean</b> — every text/background pair passes; the prior two legal contrast blockers are resolved (6.66:1 &amp; 7.16:1).</li>
+    <li class="p"><b>Token-driven theming</b> — semantic paper/ink/accent tokens; even the YouTube red is tokenized (<code>brand.youtube</code>).</li>
+    <li class="p"><b>Touch-first sizing</b> — 44×44 submit, comfortable spacing, solid bottom tabs with label + icon.</li>
+    <li class="p"><b>Textbook dark mode</b> — surface lift over a neutral charcoal base, no fake shadows, desaturated accent — matches Pro Max flat-dark guidance.</li>
+  </ul>
+
+  <!-- PRE-DELIVERY -->
+  <h2>📋 Pro Max App-UI pre-delivery checklist</h2>
+  <table>
+    <thead><tr><th>Group</th><th>Item</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td>Visual</td><td>No emojis as structural icons</td><td>◐ ▶ marker is a glyph — swap for SVG</td></tr>
+      <tr><td>Visual</td><td>Consistent icon family / sizing</td><td>✅ nav icons consistent; standardize marker</td></tr>
+      <tr><td>Visual</td><td>Semantic theme tokens, no ad-hoc hex</td><td>✅ tokenized incl. brand.youtube</td></tr>
+      <tr><td>Interaction</td><td>Touch targets ≥44×44</td><td>✅ submit 44×44</td></tr>
+      <tr><td>Interaction</td><td>Pressed feedback &lt;150ms</td><td>◐ verify in code (flat scale 0.97)</td></tr>
+      <tr><td>Interaction</td><td>Descriptive a11y labels</td><td>✗ icon-button label missing (code)</td></tr>
+      <tr><td>Light/Dark</td><td>Primary text ≥4.5:1</td><td>✅ 18.7:1</td></tr>
+      <tr><td>Light/Dark</td><td>Secondary text ≥3:1</td><td>✅ 6.66 / 7.16:1</td></tr>
+      <tr><td>Layout</td><td>Safe areas respected (nav/CTA)</td><td>◐ reserve gesture-bar inset in code</td></tr>
+      <tr><td>Layout</td><td>8/4dp spacing rhythm</td><td>✅ on grid</td></tr>
+      <tr><td>A11y</td><td>Color not the only indicator</td><td>✅ active tab = color + filled icon</td></tr>
+      <tr><td>A11y</td><td>Reduced motion / Dynamic Type</td><td>◐ verify in code</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout pro">
+    <b>Pro Max verdict:</b> 85/100 — strong, near production-grade, with one design-side gap to close. Contrast (P1), touch sizing (P2), style, layout, navigation, and type/color are all solid. The verification pass surfaced that the field label is missing on the live board (placeholder-only) — re-adding it plus the code-side accessibilityLabel closes both 🔴s and pushes this back toward the low-90s.
+    <div class="pillrow">
+      <span class="pill c">1 design 🔴 (field label)</span>
+      <span class="pill c">1 code-only 🔴</span>
+      <span class="pill w">1 🟡</span>
+      <span class="pill t">3 🟢</span>
+    </div>
+  </div>
+
+  <h2>🛠️ Recommended next actions</h2>
+  <table>
+    <thead><tr><th>#</th><th>Action</th><th>Where</th><th>Priority</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Re-add the persistent visible "YOUTUBE URL" field label above the input (missing on board)</td><td>Penpot + RN</td><td>P1</td></tr>
+      <tr><td>2</td><td>Add <code>accessibilityLabel</code> to submit ✦ &amp; any icon button; aria/label on the <code>TextInput</code></td><td><code>home.tsx</code></td><td>P1</td></tr>
+      <tr><td>3</td><td>Decide thumbnail fit — crop-fill vs 16:9 boxes (remove letterbox)</td><td>Penpot + RN</td><td>P4</td></tr>
+      <tr><td>4</td><td>Swap ▶ glyph for the SVG play/youtube icon from the icon family</td><td>Penpot + RN</td><td>P4</td></tr>
+      <tr><td>5</td><td>Verify reduced-motion, Dynamic Type, lazy images, safe-area insets</td><td>RN code</td><td>P3/P7</td></tr>
+      <tr><td>6</td><td>Ship the <code>ink4→ink3</code> contrast swap to source (placeholder + nav tint)</td><td><code>home.tsx</code> · <code>_layout.tsx</code></td><td>P1</td></tr>
+    </tbody>
+  </table>
+
+  <footer class="report">
+    Generated with UI/UX Pro Max v2.5.0 · Penpot MCP live board · 🟢 High confidence<br>
+    Board: Home — SoundKnot (1ff8d8a3-ff41-8008-8008-17f4bb1b102f) · 390 × 1143px<br>
+    Companion reports: DESIGN-AUDIT-REPORT.html (V1, 64) · DESIGN-AUDIT-REPORT-V2.html (V2, 95)
+  </footer>
+
+</div>
+</body>
+</html>

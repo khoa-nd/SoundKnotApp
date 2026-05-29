@@ -121,6 +121,8 @@
       <li><a href="#s8">Real YouTube thumbnails (odd/even)</a></li>
       <li><a href="#s9">Artifacts produced</a></li>
       <li><a href="#s10">Open follow-ups</a></li>
+      <li><a href="#s11">Round 3 — full audit remediation</a></li>
+      <li><a href="#s12">V2/V3 re-audits &amp; Round 4 fixes</a></li>
     </ol>
   </nav>
 
@@ -275,10 +277,132 @@ rect.fills = [{
     <li><span class="badge b-info">polish</span> Standardize the YouTube marker to one icon + one size across all rows; tokenize the raw <code>#FF0000</code>.</li>
   </ul>
 
+  <!-- 11 -->
+  <h2 id="s11"><span class="num">11</span> Round 3 — full audit remediation</h2>
+  <p>Worked straight through <a href="DESIGN-AUDIT-REPORT.html">DESIGN-AUDIT-REPORT.html</a> and applied every issue directly to the Penpot board (user had backed it up first). All changes verified via re-reads and recomputed WCAG ratios. Score should move from <strong>64 → high 80s/90s</strong> once re-audited (both Blockers + all 3 Criticals cleared).</p>
+
+  <div class="callout"><b>Pre-flight:</b> Reconnected the Penpot MCP, confirmed write access with a throwaway <code>Test</code> node at the page root, then removed it. The board and all 7 sections from the prior session were intact.</div>
+
+  <h3>🚫 Blockers — both fixed</h3>
+  <div class="step done"><div class="lbl d">Fixed · URL placeholder contrast</div>
+    Placeholder <code>ink4 #686868 → ink3 #A0A0A0</code>. Recomputed <b>6.66:1</b> on paper2 (was 3.12:1; needs 4.5). <span class="badge b-bug">source bug</span> <code>home.tsx:131</code>
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Nav inactive labels + icons</div>
+    LIBRARY / PROFILE text <em>and</em> their icon strokes (2 + 3 shapes) swapped <code>ink4 → ink3</code>. Recomputed <b>7.16:1</b> on paper (was 3.36:1). HOME stays <code>accent #1DB954</code>. <span class="badge b-bug">source bug</span> <code>(tabs)/_layout.tsx:46</code>
+  </div>
+
+  <h3>🔴 Critical — all fixed</h3>
+  <div class="step done"><div class="lbl d">Fixed · Submit touch target 40 → 44px</div>
+    Resized the submit board to <b>44×44</b>; added a centering flex layout (<code>alignItems/justifyContent: center</code>) so the ✦ glyph sits true-center.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Placeholder used as only label</div>
+    Added a visible mono-uppercase <b>“YOUTUBE URL”</b> label (<code>JetBrains Mono</code> 11px, ink3) inserted into the main flex column directly above the URL Input.
+  </div>
+  <div class="callout warn"><b>Still source-only:</b> the <code>accessibilityLabel</code> additions on icon-only buttons (submit ✦) are a code concern — not representable in the Penpot frame — so they remain a source task. The <em>visible</em> label above now covers the design-side of the labelling issue.</div>
+
+  <h3>🟡 Warnings — fixed</h3>
+  <div class="step done"><div class="lbl d">Fixed · Submit no longer reads as disabled</div>
+    Empty state changed from flat disabled-gray to <code>paper3 #202020</code> fill + <code>accent</code> 1.5px outline + <code>accent</code> ✦ glyph + radius 10 — an enabled affordance instead of inert gray.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · YouTube marker size standardized</div>
+    All <b>7</b> ▶ markers set to <b>12px</b> (Recent + Trending were 9px; Today’s Pick already 12px). Marker keeps its 10px reserved width + flex gap 4 so titles never pack on top.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Tokenized raw #FF0000</div>
+    Created a <code>brand</code> token set with <code>brand.youtube = #FF0000</code> and bound all 7 markers to it via <code>applyToShapes(..., ["fill"])</code> — <code>shape.tokens.fill = "brand.youtube"</code>.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Recent vs Trending title height</div>
+    Recent title rows set to the same <b>2-line (34px)</b> clamp as Trending; cover boards reflowed 203 → <b>219px</b> uniformly. Marker/title top-alignment now identical across both lists.
+  </div>
+  <div class="step"><div class="lbl">No change · Hairline borders</div>
+    Audit confirmed the dark-mode surface lift (paper2 over paper) already carries elevation correctly — borders are decorative-only. Left as-is.
+  </div>
+
+  <h3>🟢 Tips — addressed</h3>
+  <div class="step done"><div class="lbl d">Fixed · Spacing rhythm unified</div>
+    Treated label + field + chips as one input block: Hero→label <b>24</b> (major break), label→field <b>6</b> (tight pair), field→chips <b>8</b>, chips→Recent <b>24</b> (major break).
+  </div>
+  <div class="step"><div class="lbl">N/A · Play-button glyph contrast</div>
+    The green play button + dark overlay were already removed in Round 2, so the 2.59:1 glyph warning no longer applies.
+  </div>
+
+  <h3>Layout integrity after edits</h3>
+  <p>Adding the label (+27px) and the taller Recent cards (+16px each) pushed flowing content past the fixed board height and into the absolutely-pinned Bottom Nav (11px overlap). Fixed by growing the board and re-pinning the nav:</p>
+  <table class="data">
+    <thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead>
+    <tbody>
+      <tr><td>Board height</td><td>1094px</td><td><b>1143px</b></td></tr>
+      <tr><td>Flowing content bottom</td><td>1025 (overlapping nav)</td><td>1025</td></tr>
+      <tr><td>Content → nav gap</td><td>−11px (overlap)</td><td><b>+38px</b> (restored)</td></tr>
+      <tr><td>Bottom Nav</td><td>pinned 1014</td><td>re-pinned 1063</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Contrast — recomputed after fixes</h3>
+  <table class="data">
+    <thead><tr><th>Pair</th><th>Before</th><th>After</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>placeholder on paper2</td><td>3.12:1 🚫</td><td><b>6.66:1</b></td><td>✅ pass</td></tr>
+      <tr><td>nav inactive labels on paper</td><td>3.36:1 🚫</td><td><b>7.16:1</b></td><td>✅ pass</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout"><b>Net result:</b> 2 Blockers + 3 Criticals + 5 Warnings + 2 Tips resolved in the design. Three of these (placeholder, nav labels, marker color) mirror real bugs in app source — the design now shows the correct target values, but the matching <b>source edits still need to ship separately</b> (see follow-ups below).</div>
+
+  <h3>Remaining source-only follow-ups</h3>
+  <ul class="clean">
+    <li><span class="badge b-bug">source</span> Apply <code>ink4 → ink3</code> in <code>home.tsx:131</code> (placeholder) + <code>(tabs)/_layout.tsx:46</code> (<code>tabBarInactiveTintColor</code>).</li>
+    <li><span class="badge b-bug">source</span> Add <code>accessibilityLabel</code> to icon-only buttons (submit ✦ / play) + a label/aria for the <code>TextInput</code>.</li>
+    <li><span class="badge b-bug">source</span> Submit target 40 → 44px (or <code>hitSlop</code>) in <code>home.tsx:264-273</code>.</li>
+    <li><span class="badge b-fix">design</span> Thumbnail fit decision (crop-fill vs 16:9 boxes) — still open, letterbox bars remain.</li>
+  </ul>
+
+  <!-- 12 -->
+  <h2 id="s12"><span class="num">12</span> V2 / V3 re-audits &amp; Round 4 fixes</h2>
+
+  <p>Two further audit passes were run, then a final round of design fixes applied to the live board.</p>
+
+  <h3>V2 re-audit (claude-design-auditor-skill, 2nd pass)</h3>
+  <p>Verified every Round-3 fix directly against the live board (not the HTML files — the copy in <code>SuperScratch/</code> was still the unchanged V1). Score moved <strong>64 → 95</strong>; Accessibility <strong>40 → 96</strong>. Both contrast Blockers cleared (placeholder 6.66:1, nav 7.16:1), submit 44×44, markers 12px + tokenized <code>brand.youtube</code>, board 1143px. Saved as <a href="DESIGN-AUDIT-REPORT-V2.html">DESIGN-AUDIT-REPORT-V2.html</a>.</p>
+
+  <h3>V3 Pro Max audit (ui-ux-pro-max skill)</h3>
+  <p>Re-evaluated through the UI/UX Pro Max 10-priority framework + App-UI checklist, benchmarked against its design-system recommendation (flat-dark entertainment style). Saved as <a href="DESIGN-AUDIT-REPORT-V3-Pro-Max.html">DESIGN-AUDIT-REPORT-V3-Pro-Max.html</a>.</p>
+  <div class="callout warn"><b>Verification finding:</b> the standalone “YOUTUBE URL” field label that V2 reported as fixed was <b>not present on the live board</b> (placeholder-only). V3 was corrected to reflect this and scored <strong>85/100</strong>, reinstating one design-side 🔴 (placeholder-as-only-label).</p>
+
+  <h3>Round 4 — applied fixes (this session)</h3>
+  <div class="step done"><div class="lbl d">Decision · Field label</div>
+    Per user direction, the persistent “YOUTUBE URL” label was intentionally <b>not</b> added. The field stays placeholder-only by choice. <span class="badge b-info">user choice</span>
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Submit button ✦ → “Go”</div>
+    The sparkles ✦ glyph was replaced with a text label <b>“Go”</b> (15px, accent <code>#1db954</code>) inside the 44×44 button, keeping the accent outline + paper3 fill enabled-affordance.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Thumbnail letterbox removed</div>
+    All <b>6</b> Recent + Trending thumbnails switched from aspect-preserving fit to <b>crop-fill</b> (<code>keepAspectRatio:false</code>) — the 16:9 images now fill their 160×160 and 150×200 frames edge-to-edge with no bars.
+  </div>
+  <div class="step"><div class="lbl">Kept · ▶ marker glyph</div>
+    The ▶ marker remains a glyph (already standardized to 12px + tokenized <code>brand.youtube</code>). A full SVG-icon swap was deemed low-value vs effort; noted as an optional future polish.
+  </div>
+
+  <table class="data" style="margin-top:14px">
+    <thead><tr><th>Audit</th><th>Overall</th><th>Accessibility</th><th>Note</th></tr></thead>
+    <tbody>
+      <tr><td>V1</td><td>64</td><td>40</td><td>2 Blockers, 3 Critical</td></tr>
+      <tr><td>V2</td><td>95</td><td>96</td><td>Round-3 fixes verified on board</td></tr>
+      <tr><td>V3 Pro Max</td><td>85</td><td>80</td><td>Caught missing field label (now a user-accepted choice)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Remaining (source-only / by-choice)</h3>
+  <ul class="clean">
+    <li><span class="badge b-bug">source</span> <code>accessibilityLabel</code> on icon/text buttons + aria for the <code>TextInput</code> (code; not a design-frame concern).</li>
+    <li><span class="badge b-bug">source</span> Ship <code>ink4→ink3</code> contrast swap (placeholder + nav tint) in <code>home.tsx</code> / <code>(tabs)/_layout.tsx</code>.</li>
+    <li><span class="badge b-info">by choice</span> Field label intentionally omitted per user.</li>
+    <li><span class="badge b-info">polish</span> Optional: ▶ glyph → SVG play icon.</li>
+  </ul>
+
   <footer class="j">
     Session journal · Home Screen — SoundKnot · 2026-05-29<br>
-    Penpot board 1ff8d8a3-ff41-8008-8008-17f4bb1b102f (390 × 1094px) · React Native source verified<br>
-    Companion file: DESIGN-AUDIT-REPORT.html
+    Penpot board 1ff8d8a3-ff41-8008-8008-17f4bb1b102f · 390 × <b>1143px</b> · React Native source verified<br>
+    Rounds 1–4 + V1/V2/V3 audits · Submit “Go” + crop-fill thumbnails applied · companion: DESIGN-AUDIT-REPORT(-V2/-V3-Pro-Max).html
   </footer>
 
 </div>
