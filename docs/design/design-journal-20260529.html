@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Design Journal — Home Screen · SoundKnot · 2026-05-29</title>
+<style>
+  :root{
+    --paper:#121212; --paper2:#1A1A1A; --paper3:#202020;
+    --ink:#FFFFFF; --ink2:#E0E0E0; --ink3:#A0A0A0; --ink4:#686868;
+    --hair:rgba(255,255,255,0.12); --hair2:rgba(255,255,255,0.07);
+    --accent:#1DB954; --blocker:#E24B4A; --critical:#FF7A45;
+    --warn:#E8A838; --tip:#4FA8E8; --good:#1DB954;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--paper); color:var(--ink2); font-family:var(--sans); line-height:1.65; font-size:15px; -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:920px; margin:0 auto; padding:48px 24px 96px;}
+  header.j{border-bottom:1px solid var(--hair); padding-bottom:28px; margin-bottom:20px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink4); margin:0 0 8px;}
+  h1{font-size:30px; line-height:1.2; letter-spacing:-0.5px; color:var(--ink); margin:0 0 6px;}
+  h1 b{font-weight:800;}
+  .sub{color:var(--ink3); font-size:14px; margin:0;}
+
+  nav.toc{background:var(--paper2); border:1px solid var(--hair2); border-radius:12px; padding:18px 22px; margin:24px 0 40px;}
+  nav.toc h2{font-family:var(--mono); font-size:11px; letter-spacing:1.2px; text-transform:uppercase; color:var(--ink4); margin:0 0 12px; border:none; padding:0;}
+  nav.toc ol{margin:0; padding-left:20px; columns:2; column-gap:32px;}
+  nav.toc li{margin:5px 0; break-inside:avoid;}
+  nav.toc a{color:var(--ink2); text-decoration:none;}
+  nav.toc a:hover{color:var(--accent);}
+
+  h2{font-size:13px; font-family:var(--mono); letter-spacing:1.2px; text-transform:uppercase; color:var(--ink); margin:52px 0 16px; padding-bottom:10px; border-bottom:1px solid var(--hair); display:flex; align-items:center; gap:10px;}
+  h2 .num{color:var(--accent); font-weight:700;}
+  h3{font-size:17px; color:var(--ink); margin:26px 0 6px; letter-spacing:-0.2px;}
+  p{margin:10px 0;}
+  strong{color:var(--ink);}
+
+  .meta-tbl{width:100%; border-collapse:collapse; font-size:14px;}
+  .meta-tbl td{padding:7px 12px; border-bottom:1px solid var(--hair2); vertical-align:top;}
+  .meta-tbl td:first-child{color:var(--ink4); font-family:var(--mono); font-size:12px; width:150px; text-transform:uppercase; letter-spacing:0.5px;}
+
+  table.data{width:100%; border-collapse:collapse; margin:12px 0 20px; font-size:13.5px;}
+  table.data th,table.data td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--hair2);}
+  table.data th{font-family:var(--mono); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--ink4); font-weight:500;}
+  table.data tr:last-child td{border-bottom:none;}
+
+  code{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--paper2); padding:1px 6px; border-radius:4px;}
+  pre{background:var(--paper2); border:1px solid var(--hair2); border-radius:10px; padding:16px 18px; overflow-x:auto; font-family:var(--mono); font-size:12.5px; color:var(--ink2); line-height:1.55;}
+  pre .c{color:var(--ink4);}
+
+  ul.clean{list-style:none; padding:0; margin:10px 0;}
+  ul.clean li{position:relative; padding:7px 0 7px 26px; border-bottom:1px solid var(--hair2); font-size:14px;}
+  ul.clean li:last-child{border-bottom:none;}
+  ul.clean li:before{content:"›"; position:absolute; left:4px; top:7px; color:var(--accent); font-weight:700;}
+
+  .step{background:var(--paper2); border-left:3px solid var(--accent); border-radius:0 10px 10px 0; padding:14px 18px; margin:14px 0;}
+  .step .lbl{font-family:var(--mono); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--accent); margin-bottom:4px;}
+  .step.done{border-left-color:var(--good);}
+  .step .lbl.d{color:var(--good);}
+
+  .card{background:var(--paper2); border:1px solid var(--hair2); border-radius:12px; padding:18px 20px; margin:16px 0;}
+  .card h3{margin-top:0;}
+
+  .badge{display:inline-block; font-family:var(--mono); font-size:10.5px; padding:2px 8px; border-radius:20px; border:1px solid var(--hair); margin-right:6px; letter-spacing:0.4px; vertical-align:middle;}
+  .b-fix{color:var(--good); border-color:rgba(29,185,84,0.4);}
+  .b-bug{color:var(--blocker); border-color:rgba(226,75,74,0.4);}
+  .b-info{color:var(--tip); border-color:rgba(79,168,232,0.4);}
+
+  .pillrow{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0 0;}
+  .pill{font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--hair);}
+  .pill.b{color:var(--blocker); border-color:rgba(226,75,74,0.4);}
+  .pill.c{color:var(--critical); border-color:rgba(255,122,69,0.4);}
+  .pill.w{color:var(--warn); border-color:rgba(232,168,56,0.4);}
+  .pill.t{color:var(--tip); border-color:rgba(79,168,232,0.4);}
+
+  .scores{display:grid; gap:12px; margin:14px 0;}
+  .scorebar{display:grid; grid-template-columns:130px 1fr 64px; align-items:center; gap:14px;}
+  .scorebar .lbl{font-family:var(--mono); font-size:12px; letter-spacing:0.5px; color:var(--ink3); text-transform:uppercase;}
+  .track{height:11px; border-radius:7px; background:var(--paper3); overflow:hidden;}
+  .fill{height:100%; border-radius:7px;}
+  .scorebar .val{font-family:var(--mono); font-weight:600; text-align:right; color:var(--ink);}
+
+  .callout{background:rgba(79,168,232,0.08); border:1px solid rgba(79,168,232,0.25); border-radius:10px; padding:14px 18px; margin:18px 0; font-size:14px;}
+  .callout.warn{background:rgba(232,168,56,0.08); border-color:rgba(232,168,56,0.3);}
+  .callout b{color:var(--ink);}
+
+  footer.j{margin-top:60px; padding-top:20px; border-top:1px solid var(--hair); font-family:var(--mono); font-size:11px; color:var(--ink4); letter-spacing:0.4px; line-height:1.9;}
+  a{color:var(--tip);}
+  @media print{ body{background:#fff;color:#222;} .card,.step,pre,nav.toc{background:#fafafa;} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="j">
+    <p class="eyebrow">📓 Design Journal · Session Log</p>
+    <h1>Home Screen — <b>SoundKnot</b></h1>
+    <p class="sub">Penpot recreation, alignment fixes, design audit &amp; thumbnail work · 2026-05-29</p>
+  </header>
+
+  <table class="meta-tbl">
+    <tr><td>Tool</td><td>Penpot (via MCP plugin) + React Native source</td></tr>
+    <tr><td>Board</td><td>Home — SoundKnot · <code>1ff8d8a3-ff41-8008-8008-17f4bb1b102f</code> · 390 × 1094px</td></tr>
+    <tr><td>Source of truth</td><td><code>app/app/(tabs)/home.tsx</code> + tokens in <code>app/src/constants/</code></td></tr>
+    <tr><td>Stack</td><td>React Native / Expo · dark theme · Inter + JetBrains Mono</td></tr>
+    <tr><td>Date</td><td>2026-05-29</td></tr>
+  </table>
+
+  <nav class="toc">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#s1">MCP connection &amp; setup</a></li>
+      <li><a href="#s2">Recreating the Home screen from code</a></li>
+      <li><a href="#s3">Penpot API lessons learned</a></li>
+      <li><a href="#s4">Round 1 fixes — chips &amp; bottom nav</a></li>
+      <li><a href="#s5">Matching the real app screenshot</a></li>
+      <li><a href="#s6">Design audit (19 categories)</a></li>
+      <li><a href="#s7">Round 2 fixes — nav, play button, titles</a></li>
+      <li><a href="#s8">Real YouTube thumbnails (odd/even)</a></li>
+      <li><a href="#s9">Artifacts produced</a></li>
+      <li><a href="#s10">Open follow-ups</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <h2 id="s1"><span class="num">01</span> MCP connection &amp; setup</h2>
+  <p>Verified the Penpot MCP server was connected, then the plugin was manually enabled in the Penpot UI. From there all design manipulation ran through <code>mcp__penpot__execute_code</code> (JS in the plugin context) with <code>mcp__penpot__export_shape</code> for visual verification.</p>
+  <p>Scope decisions captured up front:</p>
+  <ul class="clean">
+    <li>Tech stack: <strong>React Native / Expo</strong></li>
+    <li>Canvas: <strong>iPhone 390 × 844</strong>, frame kept tall to show full scroll content</li>
+    <li>Thumbnails: pull <strong>real images</strong>, not placeholders</li>
+  </ul>
+
+  <!-- 2 -->
+  <h2 id="s2"><span class="num">02</span> Recreating the Home screen from code</h2>
+  <p>An early speculative build (a guessed audiobook UI) was discarded — <code>screen.remove()</code> — and the screen was rebuilt strictly from the real <code>home.tsx</code>. The faithful structure:</p>
+  <table class="data">
+    <thead><tr><th>Section</th><th>Spec from source</th></tr></thead>
+    <tbody>
+      <tr><td>Hero</td><td>“Bring in a <b>sound</b>.” / “Work the <b>knot</b>.” · <code>titleLarge</code> 32px, mixed weight 400/800</td></tr>
+      <tr><td>URL input</td><td>“Paste a YouTube URL…” mono placeholder + 40px submit with sparkles ✦ icon</td></tr>
+      <tr><td>Hint chips</td><td><code>Chip</code> “PASTE LINK” · “OR USE CLIPBOARD” — mono uppercase, paper2 bg, hair border</td></tr>
+      <tr><td>Recent Videos</td><td><code>SpotifyCoverSlider</code> — 160px square covers + title + creator subtitle</td></tr>
+      <tr><td>Today's Pick</td><td><code>HighlightCover</code> — 16:9 image, green play button, YouTube marker + 2-line title</td></tr>
+      <tr><td>Trending Videos</td><td><code>RankedSlider</code> — 150 × 200 portrait cards</td></tr>
+    </tbody>
+  </table>
+  <p>Tokens applied verbatim: <code>paper #121212</code>, <code>paper2 #1A1A1A</code>, <code>ink #FFFFFF</code>, <code>ink2 #E0E0E0</code>, <code>ink3 #A0A0A0</code>, <code>ink4 #686868</code>, <code>accent #1DB954</code>; spacing on the 8pt grid (<code>screen:16</code>, gaps 6/8/10/12/14/16); radii 6/7/10/12/16.</p>
+
+  <!-- 3 -->
+  <h2 id="s3"><span class="num">03</span> Penpot API lessons learned</h2>
+  <p>Several plugin-API constraints were discovered through probing and worked around:</p>
+  <ul class="clean">
+    <li><code>shape.horizontalSizing='fill'</code> errors — must set <code>child.layoutChild.horizontalSizing</code> <em>after</em> <code>appendChild</code>.</li>
+    <li>Font weights can't be set via <code>fontWeight='800'</code> — use <code>font.applyToText(t, variant)</code> with the matching FontVariant.</li>
+    <li>Negative <code>letterSpacing</code> (e.g. <code>-0.4</code>) is rejected — only 0 / positive accepted; the hero tracking was dropped as a result.</li>
+    <li><code>lineHeight</code> is a unitless multiplier — a raw <code>'38'</code> blew text up to 1216px tall.</li>
+    <li>Flex-layout boards recompute child <code>x/y</code> — manual position edits revert; spacing must be done via <code>rowGap</code> / child margins, and reserved widths.</li>
+    <li>Helpers must be inlined per call (stored function strings + <code>eval</code> failed).</li>
+  </ul>
+
+  <!-- 4 -->
+  <h2 id="s4"><span class="num">04</span> Round 1 fixes — chips &amp; bottom nav</h2>
+  <div class="step done"><div class="lbl d">Fixed · Hint chips</div>
+    Chips were fixed at 100px wide, forcing “PASTE LINK” / “OR USE CLIPBOARD” to wrap to two lines. Set each chip to hug its label on one line (matching <code>Chip.tsx</code> <code>alignSelf:'flex-start'</code>): final 69×21 and 106×21.
+  </div>
+  <div class="step done"><div class="lbl d">Added · Bottom navigation</div>
+    Added the 3-tab bar from <code>(tabs)/_layout.tsx</code> — HOME (accent green, active) · LIBRARY · PROFILE (inactive). 80px tall, paper bg, hairline top border, SVG icons + uppercase mono labels. Board grew 1023 → 1103px to host it.
+  </div>
+
+  <!-- 5 -->
+  <h2 id="s5"><span class="num">05</span> Matching the real app screenshot</h2>
+  <p>A real device screenshot was provided as ground truth (the video data comes from a live API — <code>/home</code>, <code>/videos</code> — so there are no fixtures; the screenshot <em>is</em> the data). Two corrections followed:</p>
+  <div class="step done"><div class="lbl d">Fixed · Chip overlap</div>
+    The Hint Chips row sat at <code>y=146</code>, exactly the URL box bottom — zero gap, because the flex column had <code>rowGap:0</code> and the URL box’s bottom margin was being collapsed. Added an 8px top margin on the chips row (the <code>urlRow marginBottom: Spacing.md</code> gap); flex auto-reflowed every section below.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · Card labels</div>
+    Replaced invented placeholder titles with the real video data from the screenshot. Thumbnails left untouched per instruction.
+    <table class="data" style="margin-top:10px">
+      <thead><tr><th>List</th><th>Card 1</th><th>Card 2</th><th>Card 3</th></tr></thead>
+      <tbody>
+        <tr><td>Recent</td><td>Vibe Coding Hardware / Naval</td><td>Waste Tokens, Save T… / Naval</td><td>The… / Chris…</td></tr>
+        <tr><td>Trending</td><td>Vibe Coding Hardware</td><td>Waste Tokens, Save Time</td><td>The Tw… That S…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 6 -->
+  <h2 id="s6"><span class="num">06</span> Design audit — 19 categories</h2>
+  <p>Ran the <code>claude-design-auditor-skill</code> at <strong>🟢 High confidence</strong> (Penpot + source tokens + computed WCAG ratios). Full report saved separately as <a href="DESIGN-AUDIT-REPORT.html">DESIGN-AUDIT-REPORT.html</a>.</p>
+  <div class="scores">
+    <div class="scorebar"><span class="lbl">Overall</span><span class="track"><span class="fill" style="width:64%;background:var(--warn)"></span></span><span class="val">64/100</span></div>
+    <div class="scorebar"><span class="lbl">Accessibility</span><span class="track"><span class="fill" style="width:40%;background:var(--blocker)"></span></span><span class="val">40/100</span></div>
+    <div class="scorebar"><span class="lbl">Ethics</span><span class="track"><span class="fill" style="width:100%;background:var(--good)"></span></span><span class="val">100/100</span></div>
+    <div class="scorebar"><span class="lbl">Usability</span><span class="track"><span class="fill" style="width:80%;background:var(--good)"></span></span><span class="val">80/100</span></div>
+  </div>
+  <div class="pillrow">
+    <span class="pill b">2 Blockers</span><span class="pill c">3 Critical</span><span class="pill w">7 Warnings</span><span class="pill t">4 Tips</span>
+  </div>
+
+  <h3>Computed contrast (the key findings)</h3>
+  <table class="data">
+    <thead><tr><th>Pair</th><th>Ratio</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td>ink #FFF on paper #121212</td><td>18.73:1</td><td>✅ pass</td></tr>
+      <tr><td>ink2 #E0E0E0 on paper</td><td>14.19:1</td><td>✅ pass</td></tr>
+      <tr><td>ink3 #A0A0A0 on paper</td><td>7.16:1</td><td>✅ pass</td></tr>
+      <tr><td>accent #1DB954 on paper</td><td>7.24:1</td><td>✅ pass</td></tr>
+      <tr><td><b>ink4 #686868 placeholder on paper2</b></td><td><b>3.12:1</b></td><td>🚫 fail (needs 4.5)</td></tr>
+      <tr><td><b>ink4 #686868 nav labels on paper</b></td><td><b>3.36:1</b></td><td>🚫 fail (needs 4.5)</td></tr>
+      <tr><td><b>white play glyph on accent (0.9α)</b></td><td><b>2.59:1</b></td><td>🟡 fail (needs 3.0)</td></tr>
+    </tbody>
+  </table>
+  <div class="callout"><b>Notable:</b> three of these (placeholder, nav labels, play glyph) are bugs in the <b>actual app source</b>, not just the Penpot recreation — fixing them improves the real product. The two Blockers are one-line token swaps (<code>ink4 → ink3</code>).</div>
+  <p><strong>What's working well:</strong> strong type hierarchy, excellent primary-text contrast, clean 8pt-grid spacing, and a genuinely correct dark mode (surface lift via paper2 over paper, no fake shadows, desaturated accent). No dark patterns — Ethics 100/100.</p>
+
+  <!-- 7 -->
+  <h2 id="s7"><span class="num">07</span> Round 2 fixes — nav, play button, titles</h2>
+  <p>Three issues reported off the rendered design, all fixed:</p>
+  <div class="step done"><div class="lbl d">Fixed · Nav labels not aligned</div>
+    Labels were left-offset from their icon centers. Re-centered each label under its icon — HOME cx 66≈65, LIBRARY 195=195, PROFILE 326≈325.
+  </div>
+  <div class="step done"><div class="lbl d">Removed · Play button on Today's Pick</div>
+    Removed the green play button <em>and</em> the dark legibility overlay so the thumbnail shows clean, full-brightness.
+  </div>
+  <div class="step done"><div class="lbl d">Fixed · YouTube marker / title overlap</div>
+    The ▶ marker text node measured only 1px wide (the glyph overflowed its own box), so the flex row packed the title on top of it. Gave the marker a fixed 10px reserved width so the flex <code>gap:4</code> clears the title — consistent in Recent, Trending, and Today's Pick.
+  </div>
+
+  <!-- 8 -->
+  <h2 id="s8"><span class="num">08</span> Real YouTube thumbnails (odd/even)</h2>
+  <p>Two raw YouTube thumbnails were supplied and applied alternating across the lists.</p>
+  <table class="data">
+    <thead><tr><th>Key</th><th>Source URL</th><th>Content</th><th>Native</th></tr></thead>
+    <tbody>
+      <tr><td><code>k92</code></td><td>img.youtube.com/vi/<b>k92DumKjoqs</b>/mqdefault.jpg</td><td>Rust / C / Assembly</td><td>320×180</td></tr>
+      <tr><td><code>u3G</code></td><td>img.youtube.com/vi/<b>u3GYrEOoKGk</b>/mqdefault.jpg</td><td>Knot / topology</td><td>320×180</td></tr>
+    </tbody>
+  </table>
+  <p>Mapping chosen: <strong>odd cards (1,3) = k92, even card (2) = u3G</strong>, applied separately within each list.</p>
+  <table class="data">
+    <thead><tr><th>List</th><th>Card 1 (odd)</th><th>Card 2 (even)</th><th>Card 3 (odd)</th></tr></thead>
+    <tbody>
+      <tr><td>Recent</td><td>k92</td><td>u3G</td><td>k92</td></tr>
+      <tr><td>Trending</td><td>k92</td><td>u3G</td><td>k92</td></tr>
+    </tbody>
+  </table>
+  <p>Upload worked directly from the YouTube CDN via <code>penpot.uploadMediaUrl(...)</code> this session (no base64 round-trip needed), then applied as image fills with <code>keepAspectRatio:true</code>:</p>
+  <pre><span class="c">// applied to each Thumbnail rectangle</span>
+rect.fills = [{
+  fillOpacity: 1,
+  fillImage: { id: img.id, width: img.width, height: img.height,
+               mtype: img.mtype, keepAspectRatio: true }
+}];</pre>
+  <div class="callout warn"><b>Known cosmetic effect:</b> the 16:9 source cover-fits into the 160×160 square (Recent) and 150×200 portrait (Trending) slots, so the wide thumbnails show letterbox bars. Two options offered and pending a choice: <b>(a)</b> crop-fill edge-to-edge (zoom, no bars), or <b>(b)</b> make the thumbnail boxes 16:9.</div>
+
+  <!-- 9 -->
+  <h2 id="s9"><span class="num">09</span> Artifacts produced</h2>
+  <ul class="clean">
+    <li><span class="badge b-info">design</span> Penpot board “Home — SoundKnot” — full faithful recreation, 390 × 1094px</li>
+    <li><span class="badge b-info">report</span> <code>docs/design/DESIGN-AUDIT-REPORT.html</code> — full 19-category audit</li>
+    <li><span class="badge b-info">journal</span> <code>docs/design/design-journal-20260529.html</code> — this file</li>
+  </ul>
+
+  <!-- 10 -->
+  <h2 id="s10"><span class="num">10</span> Open follow-ups</h2>
+  <ul class="clean">
+    <li><span class="badge b-bug">a11y</span> Apply the 2 Blocker contrast fixes (<code>ink4 → ink3</code>) on the placeholder + nav inactive labels — in Penpot <em>and</em> in source (<code>home.tsx:131</code>, <code>(tabs)/_layout.tsx:46</code>).</li>
+    <li><span class="badge b-bug">a11y</span> Add <code>accessibilityLabel</code> to icon-only buttons (submit ✦, play); add a label/aria for the URL field.</li>
+    <li><span class="badge b-bug">a11y</span> Submit touch target 40 → 44px (or add <code>hitSlop</code>).</li>
+    <li><span class="badge b-fix">design</span> Decide thumbnail fit: crop-fill vs 16:9 boxes (remove letterbox bars).</li>
+    <li><span class="badge b-info">polish</span> Standardize the YouTube marker to one icon + one size across all rows; tokenize the raw <code>#FF0000</code>.</li>
+  </ul>
+
+  <footer class="j">
+    Session journal · Home Screen — SoundKnot · 2026-05-29<br>
+    Penpot board 1ff8d8a3-ff41-8008-8008-17f4bb1b102f (390 × 1094px) · React Native source verified<br>
+    Companion file: DESIGN-AUDIT-REPORT.html
+  </footer>
+
+</div>
+</body>
+</html>

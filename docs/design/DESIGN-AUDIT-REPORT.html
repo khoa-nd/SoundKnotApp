@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Design Audit Report — Home Screen · SoundKnot</title>
+<style>
+  :root{
+    --paper:#121212; --paper2:#1A1A1A; --paper3:#202020;
+    --ink:#FFFFFF; --ink2:#E0E0E0; --ink3:#A0A0A0; --ink4:#686868;
+    --hair:rgba(255,255,255,0.12); --hair2:rgba(255,255,255,0.07);
+    --accent:#1DB954; --blocker:#E24B4A; --critical:#FF7A45;
+    --warn:#E8A838; --tip:#4FA8E8; --good:#1DB954;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink2);
+    font-family:var(--sans); line-height:1.6; font-size:15px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding:48px 24px 96px;}
+  header.report{border-bottom:1px solid var(--hair); padding-bottom:28px; margin-bottom:36px;}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:1.5px; text-transform:uppercase; color:var(--ink4); margin:0 0 8px;}
+  h1{font-size:30px; line-height:1.2; letter-spacing:-0.5px; color:var(--ink); margin:0 0 6px;}
+  h1 b{font-weight:800;}
+  .sub{color:var(--ink3); font-size:14px; margin:0;}
+  h2{font-size:13px; font-family:var(--mono); letter-spacing:1.2px; text-transform:uppercase; color:var(--ink); margin:48px 0 16px; padding-bottom:10px; border-bottom:1px solid var(--hair); display:flex; align-items:center; gap:10px;}
+  h3{font-size:18px; color:var(--ink); margin:28px 0 4px; letter-spacing:-0.2px;}
+
+  table{width:100%; border-collapse:collapse; margin:8px 0 20px; font-size:14px;}
+  th,td{text-align:left; padding:9px 12px; border-bottom:1px solid var(--hair2);}
+  th{font-family:var(--mono); font-size:11px; letter-spacing:0.6px; text-transform:uppercase; color:var(--ink4); font-weight:500;}
+  td{color:var(--ink2);} td code{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--paper2); padding:1px 6px; border-radius:4px;}
+  tr:last-child td{border-bottom:none;}
+  .meta-tbl td:first-child{color:var(--ink4); font-family:var(--mono); font-size:12px; width:130px; text-transform:uppercase; letter-spacing:0.5px;}
+
+  /* scores */
+  .scores{display:grid; gap:14px; margin:8px 0 6px;}
+  .scorebar{display:grid; grid-template-columns:130px 1fr 70px; align-items:center; gap:14px;}
+  .scorebar .lbl{font-family:var(--mono); font-size:12px; letter-spacing:0.5px; color:var(--ink3); text-transform:uppercase;}
+  .track{height:12px; border-radius:7px; background:var(--paper3); overflow:hidden;}
+  .fill{height:100%; border-radius:7px;}
+  .scorebar .val{font-family:var(--mono); font-weight:600; text-align:right; color:var(--ink);}
+  .scorenote{color:var(--ink3); font-size:13.5px; font-style:italic; margin:14px 0 0;}
+  .formula{font-family:var(--mono); font-size:12.5px; color:var(--ink3); background:var(--paper2); border:1px solid var(--hair2); border-radius:8px; padding:12px 14px; margin:10px 0; overflow-x:auto;}
+  .legal{color:var(--blocker); font-weight:600;}
+
+  /* category table cells */
+  .catbar{font-family:var(--mono); letter-spacing:-1px; font-size:14px;}
+  .sev-num{font-family:var(--mono); text-align:center; width:42px;}
+
+  /* issue cards */
+  .issue{border-left:3px solid var(--hair); background:var(--paper2); border-radius:0 10px 10px 0; padding:16px 18px; margin:14px 0;}
+  .issue.blocker{border-left-color:var(--blocker);}
+  .issue.critical{border-left-color:var(--critical);}
+  .issue.warn{border-left-color:var(--warn);}
+  .issue.tip{border-left-color:var(--tip); padding:12px 18px;}
+  .issue .name{font-weight:700; color:var(--ink); font-size:15.5px; margin:0 0 6px;}
+  .issue p{margin:5px 0; font-size:14px;}
+  .issue .k{font-family:var(--mono); font-size:11px; letter-spacing:0.5px; text-transform:uppercase; color:var(--ink4); margin-right:6px;}
+  .issue code, .pos code{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--paper); padding:1px 6px; border-radius:4px;}
+  .issue.tip p{margin:0;}
+
+  .sectionhead{display:flex; align-items:center; gap:12px; margin:42px 0 4px; padding:10px 14px; border-radius:8px; font-family:var(--mono); font-size:12.5px; letter-spacing:1px; text-transform:uppercase; font-weight:600;}
+  .sectionhead.blocker{background:rgba(226,75,74,0.12); color:var(--blocker);}
+  .sectionhead.critical{background:rgba(255,122,69,0.12); color:var(--critical);}
+  .sectionhead.warn{background:rgba(232,168,56,0.12); color:var(--warn);}
+  .sectionhead.tip{background:rgba(79,168,232,0.12); color:var(--tip);}
+  .sectionhead.good{background:rgba(29,185,84,0.12); color:var(--good);}
+  .sectionhead .pts{margin-left:auto; opacity:0.7; font-size:11px;}
+
+  ul.pos{list-style:none; padding:0; margin:8px 0;}
+  ul.pos li{position:relative; padding:8px 0 8px 26px; border-bottom:1px solid var(--hair2); font-size:14px;}
+  ul.pos li:before{content:"✓"; position:absolute; left:0; top:8px; color:var(--good); font-weight:700;}
+  ul.pos li:last-child{border-bottom:none;}
+  ul.pos li b{color:var(--ink);}
+
+  .callout{background:var(--paper2); border:1px solid var(--hair2); border-radius:10px; padding:16px 18px; margin:18px 0; font-size:14px;}
+  .callout b{color:var(--ink);}
+
+  .pillrow{display:flex; gap:8px; flex-wrap:wrap; margin:6px 0 0;}
+  .pill{font-family:var(--mono); font-size:11px; padding:3px 9px; border-radius:20px; border:1px solid var(--hair);}
+  .pill.b{color:var(--blocker); border-color:rgba(226,75,74,0.4);}
+  .pill.c{color:var(--critical); border-color:rgba(255,122,69,0.4);}
+  .pill.w{color:var(--warn); border-color:rgba(232,168,56,0.4);}
+  .pill.t{color:var(--tip); border-color:rgba(79,168,232,0.4);}
+
+  footer.report{margin-top:56px; padding-top:20px; border-top:1px solid var(--hair); font-family:var(--mono); font-size:11px; color:var(--ink4); letter-spacing:0.4px; line-height:1.8;}
+
+  @media print{
+    body{background:#fff; color:#222;}
+    .issue,.callout,.formula{background:#fafafa;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="report">
+    <p class="eyebrow">🔍 Design Audit Report</p>
+    <h1>Home Screen — <b>SoundKnot</b></h1>
+    <p class="sub">Full audit across all 19 categories · Penpot design verified against React Native source</p>
+  </header>
+
+  <table class="meta-tbl">
+    <tr><td>Input</td><td>Home — SoundKnot (mobile screen)</td></tr>
+    <tr><td>Type</td><td>Penpot MCP + React Native source</td></tr>
+    <tr><td>Framework</td><td>React Native / Expo — dark theme, Inter + JetBrains Mono</td></tr>
+    <tr><td>Confidence</td><td>🟢 High — design + source tokens + computed contrast ratios</td></tr>
+    <tr><td>Scope</td><td>Full screen, 390 × 1094px · all 19 categories</td></tr>
+    <tr><td>Date</td><td>2026-05-29</td></tr>
+  </table>
+  <p class="scorenote">Detected: Full screen — auditing all 19 categories. Inferred: Full audit · Production (shipped app) · WCAG AA.</p>
+
+  <!-- ============ SCORES ============ -->
+  <h2>📊 Scores</h2>
+  <div class="scores">
+    <div class="scorebar">
+      <span class="lbl">Overall</span>
+      <span class="track"><span class="fill" style="width:64%; background:var(--warn);"></span></span>
+      <span class="val">64/100</span>
+    </div>
+    <div class="scorebar">
+      <span class="lbl">Accessibility</span>
+      <span class="track"><span class="fill" style="width:40%; background:var(--blocker);"></span></span>
+      <span class="val">40/100</span>
+    </div>
+    <div class="scorebar">
+      <span class="lbl">Ethics</span>
+      <span class="track"><span class="fill" style="width:100%; background:var(--good);"></span></span>
+      <span class="val">100/100</span>
+    </div>
+    <div class="scorebar">
+      <span class="lbl">Usability</span>
+      <span class="track"><span class="fill" style="width:80%; background:var(--good);"></span></span>
+      <span class="val">80/100</span>
+    </div>
+  </div>
+  <div class="formula">Overall: 100 − (2 🚫 × 12) − (3 🔴 × 8) − (7 🟡 × 4) − (4 🟢 × 1) = 100 − 24 − 24 − 28 − 4 = <b style="color:var(--ink)">64/100</b></div>
+  <div class="formula">Accessibility (Cat 2,6,7,15,16): 100 − (2 🚫 × 12) − (3 🔴 × 8) − (3 🟡 × 4) = 100 − 24 − 24 − 12 = <span class="legal">40/100 ⚠️ Contains legal compliance failures</span></div>
+  <p class="scorenote">Two contrast Blockers plus missing interactive states are what dragged the score down hardest.</p>
+
+  <!-- ============ CATEGORY TABLE ============ -->
+  <h3>Score by Category</h3>
+  <table>
+    <thead><tr><th>Category</th><th>Score</th><th>Bar</th><th class="sev-num">🚫</th><th class="sev-num">🔴</th><th class="sev-num">🟡</th><th class="sev-num">🟢</th></tr></thead>
+    <tbody>
+      <tr><td>1 · Typography</td><td>8/10</td><td class="catbar">████████░░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td></tr>
+      <tr><td>2 · Color &amp; Contrast</td><td>4/10</td><td class="catbar" style="color:var(--blocker)">████░░░░░░</td><td class="sev-num">2</td><td class="sev-num">—</td><td class="sev-num">1</td><td class="sev-num">—</td></tr>
+      <tr><td>3 · Spacing &amp; Layout</td><td>9/10</td><td class="catbar">█████████░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td></tr>
+      <tr><td>4 · Visual Hierarchy</td><td>9/10</td><td class="catbar">█████████░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">—</td></tr>
+      <tr><td>5 · Consistency</td><td>8/10</td><td class="catbar">████████░░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td><td class="sev-num">—</td></tr>
+      <tr><td>6 · Accessibility</td><td>3/10</td><td class="catbar" style="color:var(--blocker)">███░░░░░░░</td><td class="sev-num">—</td><td class="sev-num">2</td><td class="sev-num">2</td><td class="sev-num">—</td></tr>
+      <tr><td>7 · Forms &amp; Inputs</td><td>6/10</td><td class="catbar" style="color:var(--warn)">██████░░░░</td><td class="sev-num">—</td><td class="sev-num">1</td><td class="sev-num">—</td><td class="sev-num">—</td></tr>
+      <tr><td>9 · Dark Mode</td><td>8/10</td><td class="catbar">████████░░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td><td class="sev-num">—</td></tr>
+      <tr><td>11 · States</td><td>7/10</td><td class="catbar">███████░░░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td><td class="sev-num">—</td></tr>
+      <tr><td>12 · Microcopy</td><td>9/10</td><td class="catbar">█████████░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td></tr>
+      <tr><td>15 · Iconography</td><td>7/10</td><td class="catbar">███████░░░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td><td class="sev-num">—</td></tr>
+      <tr><td>16 · Navigation</td><td>8/10</td><td class="catbar">████████░░</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">—</td><td class="sev-num">1</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ============ BLOCKERS ============ -->
+  <div class="sectionhead blocker">🚫 Blockers · cannot ship <span class="pts">−12 pts each</span></div>
+
+  <div class="issue blocker">
+    <p class="name">URL placeholder text fails contrast</p>
+    <p>“Paste a YouTube URL…” uses <code>ink4 #686868</code> on <code>paper2 #1A1A1A</code> = <b>3.12:1</b>. Normal 13px text needs ≥ 4.5:1.</p>
+    <p><span class="k">Fix</span>Use <code>ink3 #A0A0A0</code> (→ 4.6:1 on paper2) for the placeholder, or darken the field background.</p>
+    <p><span class="k">Legal</span>WCAG 2.1 SC 1.4.3 (Contrast Minimum)</p>
+    <p><span class="k">Location</span>URL Input → “Paste a YouTube URL…” · source <code>home.tsx:131</code> <code>placeholderTextColor={colors.ink4}</code></p>
+    <p style="color:var(--ink3); font-size:13px;">⚠️ A placeholder is also <i>not a label</i> — see Cat 7 Critical below.</p>
+  </div>
+
+  <div class="issue blocker">
+    <p class="name">Bottom-nav inactive labels fail contrast</p>
+    <p>“LIBRARY” / “PROFILE” use <code>ink4 #686868</code> on <code>paper #121212</code> = <b>3.36:1</b> at 10px. Normal text needs ≥ 4.5:1.</p>
+    <p><span class="k">Fix</span>Use <code>ink3 #A0A0A0</code> (→ 7.16:1) for inactive tab labels + icons. Keep HOME on <code>accent #1DB954</code> (7.24:1, passes).</p>
+    <p><span class="k">Legal</span>WCAG 2.1 SC 1.4.3</p>
+    <p><span class="k">Location</span>Bottom Nav → “LIBRARY”, “PROFILE” · source <code>(tabs)/_layout.tsx:46</code> <code>tabBarInactiveTintColor: colors.ink4</code></p>
+  </div>
+
+  <!-- ============ CRITICAL ============ -->
+  <div class="sectionhead critical">🔴 Critical Issues · must fix <span class="pts">−8 pts each</span></div>
+
+  <div class="issue critical">
+    <p class="name">Sub-44px touch targets — affects 3 element types</p>
+    <p>Submit button is <b>40×40px</b>; bottom-nav items and chips are also tappable but small. Minimum tappable size is 44×44px (iOS HIG) / 48dp (Material).</p>
+    <p><span class="k">Fix</span>Submit → 44×44 (or keep 40px visual with a 44px <code>hitSlop</code>). Nav columns are wide horizontally (130px) and the 80px bar gives vertical room, so nav is OK — the <b>40px submit is the real fail</b>.</p>
+    <p><span class="k">Why</span>WCAG 2.5.5 / platform HIG — small targets cause mis-taps, worse for motor impairments.</p>
+    <p><span class="k">Location</span>URL Input → Submit (40×40) · source <code>home.tsx:264-273</code> <code>width: 40</code></p>
+  </div>
+
+  <div class="issue critical">
+    <p class="name">No accessible name on icon-only buttons</p>
+    <p>The Submit button (sparkles ✦) and the green Play button are icon-only with no text label or <code>accessibilityLabel</code>.</p>
+    <p><span class="k">Fix</span>Add <code>accessibilityLabel="Process YouTube link"</code> to the submit <code>TouchableOpacity</code>, and <code>accessibilityLabel="Play"</code> to the highlight card play control.</p>
+    <p><span class="k">Why</span>WCAG 4.1.2 / 2.4.6 — screen readers announce nothing for these controls.</p>
+    <p><span class="k">Location</span>source <code>home.tsx:139-153</code> (submit), <code>HighlightCover.tsx:34-36</code> (play)</p>
+  </div>
+
+  <div class="issue critical">
+    <p class="name">Placeholder used as the only label</p>
+    <p>The URL field has no visible label — only the placeholder “Paste a YouTube URL…”, which disappears on typing. Users lose context, and screen readers may not announce it.</p>
+    <p><span class="k">Fix</span>Add a visible label or at minimum <code>accessibilityLabel="YouTube URL"</code> on the <code>TextInput</code>. (The hero “Bring in a sound” is decorative, not a field label.)</p>
+    <p><span class="k">Why</span>WCAG 1.3.1 / 3.3.2 — placeholders are not labels.</p>
+    <p><span class="k">Location</span>source <code>home.tsx:130</code> <code>placeholder="Paste a YouTube URL…"</code></p>
+  </div>
+
+  <!-- ============ WARNINGS ============ -->
+  <div class="sectionhead warn">🟡 Warnings · should fix <span class="pts">−4 pts each</span></div>
+
+  <div class="issue warn">
+    <p class="name">Play-button glyph fails icon contrast</p>
+    <p>White play icon <code>#FFFFFF</code> on <code>rgba(29,185,84,0.9)</code> green = <b>2.59:1</b>. UI icons need ≥ 3:1. (Matches source — real bug.)</p>
+    <p><span class="k">Fix</span>Use <code>paper #121212</code> glyph on the green button (→ 7.24:1) — the same dark-on-accent pattern the submit button already uses.</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">Submit button reads as permanently disabled</p>
+    <p>The submit uses <code>ink4 #686868</code> (the disabled-gray) in the design. In source it’s <code>ink4</code> only when empty and <code>ink</code> when a URL is typed — but the default/empty state shown looks inert and low-contrast.</p>
+    <p><span class="k">Fix</span>Give the empty state a subtler enabled affordance (e.g. <code>paper2</code> fill + <code>accent</code> icon) so the primary action doesn’t look dead on first load.</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">Disabled / empty state of submit not visually distinct (Cat 11)</p>
+    <p>The empty-state submit (<code>#686868</code>) and a genuinely disabled control look identical — no way to tell “not yet” from “can’t.”</p>
+    <p><span class="k">Fix</span>Give the empty state an accent-tinted outline; reserve flat gray for true disabled.</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">YouTube marker uses raw <code>#FF0000</code>, not a token (Cat 5 / 17)</p>
+    <p>The ▶ / YouTube marker is hardcoded pure red <code>#FF0000</code> (5 cards + highlight). It’s not in the token set; pure red on dark is slightly harsh.</p>
+    <p><span class="k">Fix</span>Accept it as the YouTube brand color (legitimate) or alias to a <code>--brand-youtube</code> token. Pure red on paper2 = 4.35:1 (OK for the small glyph, but tokenize it).</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">Marker <code>▶</code> size inconsistent (Cat 15)</p>
+    <p>The marker is 9px in cards but the highlight uses a 12px <code>▶</code> (and source uses a 14px <code>logo-youtube</code> Ionicon). Three sizes/representations for the same “YouTube” signal.</p>
+    <p><span class="k">Fix</span>Standardize to one icon + one optical size (e.g. 12px) across all video rows.</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">Recent vs Trending card title height differs (Cat 5)</p>
+    <p>Recent titles are single-line (18px row); Trending titles are 2-line (34px row). Same content type, different treatment.</p>
+    <p><span class="k">Fix</span>Pick one line-clamp. The source uses <code>numberOfLines={2}</code> for both via the slider components — align the design to 2 lines everywhere.</p>
+  </div>
+
+  <div class="issue warn">
+    <p class="name">Hairline borders may sub-pixel on the URL box &amp; cards (Cat 9)</p>
+    <p>Card/field borders use <code>hair rgba(255,255,255,0.12)</code> at <code>StyleSheet.hairlineWidth</code>. On the dark surface this is fine — ensure elevation is read via the <code>paper2</code> surface lift (it is) rather than the near-invisible border alone.</p>
+    <p><span class="k">Fix</span>Keep the surface lift; treat borders as decorative-only. ✓ Mostly correct.</p>
+  </div>
+
+  <!-- ============ TIPS ============ -->
+  <div class="sectionhead tip">🟢 Tips · nice to have <span class="pts">−1 pt each</span></div>
+
+  <div class="issue tip"><p><b>Hero letter-spacing</b> — Source <code>titleLarge</code> sets <code>letterSpacing: -0.4</code>; the Penpot text dropped it (negative tracking is rejected by the API). Minor — the hero reads slightly looser than the app.</p></div>
+  <div class="issue tip"><p><b>Truncated edge labels</b> (“The…”, “Chris…”, “The Tw… That S…”) — Intentional per the screenshot match, but they read as broken copy out of context. Fine for the off-screen peek card; ensure the real app uses a proper ellipsis component.</p></div>
+  <div class="issue tip"><p><b>Section spacing rhythm</b> — Hero→URL gap (24px) vs other section gaps (14px). Slightly irregular vertical rhythm. Optional: unify to a 16/24 pairing.</p></div>
+  <div class="issue tip"><p><b>Content margins</b> — Consistent 16px screen padding throughout. ✓ The bottom nav spans full-bleed (good) while content is inset 16px (good) — the contrast is intentional and correct.</p></div>
+
+  <!-- ============ POSITIVES ============ -->
+  <div class="sectionhead good">✅ What’s Working Well</div>
+  <ul class="pos">
+    <li><b>Strong type hierarchy</b> — 32px hero → 22px section headings → 14/13px body → 10.5px mono chips. Clear, well-separated scale with meaningful weight contrast (the bold “sound”/“knot” emphasis is a nice touch).</li>
+    <li><b>Excellent primary-text contrast</b> — Body/headings use <code>ink #FFF</code> (18.7:1) and <code>ink2 #E0E0E0</code> (14.2:1) — far above AA.</li>
+    <li><b>Clean 8pt-grid spacing</b> — Padding (16), gaps (8/14/24), card sizes (160, 150×200) all land on the grid. No arbitrary values.</li>
+    <li><b>Genuinely correct dark mode</b> — Surfaces lift via <code>paper2 #1A1A1A</code> over <code>paper #121212</code> (not pure black, no fake shadows), accent desaturated appropriately. Textbook dark-mode depth.</li>
+  </ul>
+
+  <div class="callout">
+    <p style="margin-top:0"><b>Nielsen heuristics:</b> H6 (Recognition) ✓ nav has text labels; H2 (real-world match) ✓ YouTube marker + “Today’s Pick” language. H4/H5/H8/H9 covered by Cat 5/7/4/11. Main gap: H1 (system status) — no visible loading affordance in this static frame (the source <i>does</i> have skeletons + a progress modal, so this is design-frame-only).</p>
+    <p style="margin-bottom:0"><b>Dark patterns (Cat 18):</b> None found — <b style="color:var(--good)">Ethics 100/100</b>. No confirmshaming, false urgency, decoy pricing, or pre-checked consent. Clean.</p>
+  </div>
+
+  <!-- ============ PRIORITY MATRIX ============ -->
+  <h2>⚡ Issue Priority Matrix</h2>
+  <p class="scorenote" style="margin-top:0">Start top-left: high impact, low effort.</p>
+  <table>
+    <thead><tr><th>Issue</th><th class="sev-num">Impact</th><th class="sev-num">Effort</th><th class="sev-num">Sev</th></tr></thead>
+    <tbody>
+      <tr><td>Nav inactive label contrast → <code>ink3</code></td><td class="sev-num">9</td><td class="sev-num">1</td><td class="sev-num">🚫</td></tr>
+      <tr><td>Placeholder contrast → <code>ink3</code></td><td class="sev-num">9</td><td class="sev-num">1</td><td class="sev-num">🚫</td></tr>
+      <tr><td>Play glyph → dark-on-green</td><td class="sev-num">6</td><td class="sev-num">1</td><td class="sev-num">🟡</td></tr>
+      <tr><td><code>accessibilityLabel</code> on icon buttons</td><td class="sev-num">8</td><td class="sev-num">2</td><td class="sev-num">🔴</td></tr>
+      <tr><td>Submit hit-slop to 44px</td><td class="sev-num">7</td><td class="sev-num">2</td><td class="sev-num">🔴</td></tr>
+      <tr><td>Visible / aria label for URL field</td><td class="sev-num">8</td><td class="sev-num">3</td><td class="sev-num">🔴</td></tr>
+    </tbody>
+  </table>
+  <div class="callout">
+    The two Blockers are <b>one-line token swaps</b> (<code>ink4 → ink3</code>) that also fix the matching source — highest leverage. Notably, three of these (placeholder, nav labels, play glyph) are bugs in the <b>actual app source</b>, not just the Penpot recreation, so fixing them improves the real product.
+    <div class="pillrow">
+      <span class="pill b">2 Blockers</span>
+      <span class="pill c">3 Critical</span>
+      <span class="pill w">7 Warnings</span>
+      <span class="pill t">4 Tips</span>
+    </div>
+  </div>
+
+  <footer class="report">
+    Audit run with Design Auditor Skill v1.2.13 · Penpot MCP + RN source · 🟢 High confidence<br>
+    Board: Home — SoundKnot (1ff8d8a3-ff41-8008-8008-17f4bb1b102f) · 390 × 1094px<br>
+    Re-audit after fixes to track progress.
+  </footer>
+
+</div>
+</body>
+</html>
